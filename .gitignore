@@ -1,0 +1,23 @@
+node_modules/
+dist/
+coverage/
+.env
+*.log
+.DS_Store
+__pycache__/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local Claude Code skills/settings (not part of the app)
+.claude/
+
+# Personal financial data exports kept next to the project (e.g. facturas.csv)
+/*.csv
+/*.xlsx
+/*.xls
+
+# Database backups made in the project root (see README)
+/*.sql
+/*.dump
