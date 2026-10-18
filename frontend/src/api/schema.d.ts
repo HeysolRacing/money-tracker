@@ -235,6 +235,78 @@ export interface paths {
         patch: operations["invoices-update_invoice"];
         trace?: never;
     };
+    "/api/loans/borrowers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Borrowers */
+        get: operations["loans-list_borrowers"];
+        put?: never;
+        /** Create Borrower */
+        post: operations["loans-create_borrower"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/loans/borrowers/{borrower_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Borrower */
+        delete: operations["loans-delete_borrower"];
+        options?: never;
+        head?: never;
+        /** Update Borrower */
+        patch: operations["loans-update_borrower"];
+        trace?: never;
+    };
+    "/api/loans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Entries */
+        get: operations["loans-list_entries"];
+        put?: never;
+        /** Create Entry */
+        post: operations["loans-create_entry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/loans/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Entry */
+        delete: operations["loans-delete_entry"];
+        options?: never;
+        head?: never;
+        /** Update Entry */
+        patch: operations["loans-update_entry"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -326,6 +398,24 @@ export interface components {
             iva: string;
             /** Total */
             total: string;
+        };
+        /** BorrowerCreate */
+        BorrowerCreate: {
+            /** Name */
+            name: string;
+        };
+        /** BorrowerOut */
+        BorrowerOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            totals: components["schemas"]["LoanTotals"];
+        };
+        /** BorrowerUpdate */
+        BorrowerUpdate: {
+            /** Name */
+            name: string;
         };
         /** CategoryCreate */
         CategoryCreate: {
@@ -444,6 +534,83 @@ export interface components {
             is_invoiced?: boolean | null;
             /** Is Extra */
             is_extra?: boolean | null;
+        };
+        /** LoanEntryCreate */
+        LoanEntryCreate: {
+            /** Borrower Id */
+            borrower_id: number;
+            /**
+             * Entry Date
+             * Format: date
+             */
+            entry_date: string;
+            /** Description */
+            description: string;
+            /**
+             * Lent
+             * @default 0
+             */
+            lent: number | string;
+            /**
+             * Paid
+             * @default 0
+             */
+            paid: number | string;
+        };
+        /** LoanEntryList */
+        LoanEntryList: {
+            /** Items */
+            items: components["schemas"]["LoanEntryOut"][];
+            summary: components["schemas"]["LoanTotals"];
+        };
+        /** LoanEntryOut */
+        LoanEntryOut: {
+            /** Id */
+            id: number;
+            /** Borrower Id */
+            borrower_id: number;
+            /**
+             * Entry Date
+             * Format: date
+             */
+            entry_date: string;
+            /** Description */
+            description: string;
+            /** Lent */
+            lent: string;
+            /** Paid */
+            paid: string;
+        };
+        /** LoanEntryUpdate */
+        LoanEntryUpdate: {
+            /** Borrower Id */
+            borrower_id?: number | null;
+            /** Entry Date */
+            entry_date?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Lent */
+            lent?: number | string | null;
+            /** Paid */
+            paid?: number | string | null;
+        };
+        /**
+         * LoanTotals
+         * @description Totals over loan entries. Balance and revenue are netted per borrower, then summed:
+         *     a borrower who has paid back less than they were lent owes the difference (Saldo); one
+         *     who has paid back more produced revenue (Ganancia).
+         */
+        LoanTotals: {
+            /** Count */
+            count: number;
+            /** Lent */
+            lent: string;
+            /** Paid */
+            paid: string;
+            /** Balance */
+            balance: string;
+            /** Revenue */
+            revenue: string;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -1022,6 +1189,8 @@ export interface operations {
                 date_from?: string | null;
                 date_to?: string | null;
                 q?: string | null;
+                sort?: "date" | "description" | "category" | "account" | "amount";
+                order?: "asc" | "desc";
                 limit?: number;
                 offset?: number;
             };
@@ -1351,6 +1520,279 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InvoiceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "loans-list_borrowers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BorrowerOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "loans-create_borrower": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BorrowerCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BorrowerOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "loans-delete_borrower": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                borrower_id: number;
+            };
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "loans-update_borrower": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                borrower_id: number;
+            };
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BorrowerUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BorrowerOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "loans-list_entries": {
+        parameters: {
+            query?: {
+                borrower_id?: number | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                q?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoanEntryList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "loans-create_entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoanEntryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoanEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "loans-delete_entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "loans-update_entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoanEntryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoanEntryOut"];
                 };
             };
             /** @description Validation Error */

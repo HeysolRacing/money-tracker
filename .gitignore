@@ -21,3 +21,4 @@ __pycache__/
 # Database backups made in the project root (see README)
 /*.sql
 /*.dump
+/*.pdf

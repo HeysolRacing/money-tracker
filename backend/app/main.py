@@ -7,6 +7,7 @@ from app.auth.router import router as auth_router
 from app.categories.router import router as categories_router
 from app.errors import register_error_handlers
 from app.invoices.router import router as invoices_router
+from app.loans.router import router as loans_router
 from app.transactions.router import router as transactions_router
 from app.transactions.router import transfers_router
 
@@ -33,4 +34,5 @@ api.include_router(categories_router)
 api.include_router(transactions_router)
 api.include_router(transfers_router)
 api.include_router(invoices_router)
+api.include_router(loans_router)
 app.include_router(api)

@@ -1,4 +1,6 @@
-from sqlalchemy import Select, delete, func, or_, select
+from typing import Any
+
+from sqlalchemy import Select, SQLColumnExpression, asc, case, delete, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -6,7 +8,7 @@ from app.accounts.models import Account
 from app.categories.models import Category
 from app.common.crud import get_owned
 from app.errors import AppError
-from app.transactions.models import TRANSFER_KINDS, Transaction, TransactionKind
+from app.transactions.models import INFLOW_KINDS, TRANSFER_KINDS, Transaction, TransactionKind
 from app.transactions.schemas import (
     TransactionCreate,
     TransactionFilters,
@@ -21,11 +23,48 @@ from app.transactions.schemas import (
 TRANSFER_EDITABLE = {"date", "description", "notes"}
 
 Peer = aliased(Transaction)
+TxCategory = aliased(Category)
+TxParentCategory = aliased(Category)
 
 
 def _with_counterpart(query: Select[Transaction]) -> Select[Transaction, int | None]:
     return query.add_columns(Peer.account_id).outerjoin(
         Peer, Peer.id == Transaction.transfer_peer_id
+    )
+
+
+def _sorted(
+    query: Select[Transaction, int | None], f: TransactionFilters
+) -> Select[Transaction, int | None]:
+    """Order by the requested column, then newest first so ties stay stable across pages."""
+    keys: list[SQLColumnExpression[Any]] = []
+    if f.sort == "date":
+        keys = [Transaction.date]
+    elif f.sort == "description":
+        keys = [func.lower(Transaction.description)]
+    elif f.sort == "amount":
+        # Signed, as shown in the table: inflows positive, outflows negative.
+        keys = [
+            case(
+                (Transaction.kind.in_(INFLOW_KINDS), Transaction.amount), else_=-Transaction.amount
+            )
+        ]
+    elif f.sort == "account":
+        query = query.join(Account, Account.id == Transaction.account_id)
+        keys = [func.lower(Account.name)]
+    elif f.sort == "category":
+        # Sorted by the label the UI shows, "Parent › Child"; uncategorized rows go last.
+        query = query.outerjoin(TxCategory, TxCategory.id == Transaction.category_id).outerjoin(
+            TxParentCategory, TxParentCategory.id == TxCategory.parent_id
+        )
+        keys = [
+            func.lower(func.coalesce(TxParentCategory.name, TxCategory.name)),
+            case((TxParentCategory.id.is_(None), 0), else_=1),
+            func.lower(TxCategory.name),
+        ]
+    direction = asc if f.order == "asc" else desc
+    return query.order_by(
+        *(direction(k).nulls_last() for k in keys), Transaction.date.desc(), Transaction.id.desc()
     )
 
 
@@ -91,12 +130,7 @@ async def list_transactions(
         )
 
     total = await db.scalar(select(func.count()).select_from(query.subquery())) or 0
-    page = (
-        _with_counterpart(query)
-        .order_by(Transaction.date.desc(), Transaction.id.desc())
-        .limit(f.limit)
-        .offset(f.offset)
-    )
+    page = _sorted(_with_counterpart(query), f).limit(f.limit).offset(f.offset)
     rows = (await db.execute(page)).all()
     return TransactionPage(items=[_to_out(tx, cp) for tx, cp in rows], total=total)
 

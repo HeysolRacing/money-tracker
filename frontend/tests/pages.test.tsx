@@ -5,7 +5,7 @@ import { MantineProvider } from '@mantine/core';
 import { DatesProvider } from '@mantine/dates';
 import { ModalsProvider } from '@mantine/modals';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,6 +13,7 @@ import { AccountsPage } from '../src/pages/AccountsPage';
 import { CategoriesPage } from '../src/pages/CategoriesPage';
 import { HomePage } from '../src/pages/HomePage';
 import { InvoicesPage } from '../src/pages/InvoicesPage';
+import { LoansPage } from '../src/pages/LoansPage';
 import { TransactionsPage } from '../src/pages/TransactionsPage';
 
 const accounts = [
@@ -120,6 +121,41 @@ const invoices = {
   },
 };
 
+const loanTotals = (lent: string, paid: string, balance: string, revenue: string) => ({
+  count: 2,
+  lent,
+  paid,
+  balance,
+  revenue,
+});
+
+const borrowers = [
+  { id: 1, name: 'Aromas', totals: loanTotals('500.00', '650.00', '0.00', '150.00') },
+  { id: 2, name: 'Ricardo', totals: loanTotals('10999.00', '914.00', '10085.00', '0.00') },
+];
+
+const loans = {
+  items: [
+    {
+      id: 1,
+      borrower_id: 2,
+      entry_date: '2026-04-14',
+      description: 'OSVALDO',
+      lent: '10999.00',
+      paid: '0.00',
+    },
+    {
+      id: 2,
+      borrower_id: 2,
+      entry_date: '2026-06-01',
+      description: 'PAGO 1',
+      lent: '0.00',
+      paid: '914.00',
+    },
+  ],
+  summary: loanTotals('10999.00', '914.00', '10085.00', '0.00'),
+};
+
 function respond(body: unknown) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -136,6 +172,8 @@ beforeEach(() => {
       if (url.includes('/api/categories')) return respond(categories);
       if (url.includes('/api/transactions')) return respond(transactions);
       if (url.includes('/api/invoices')) return respond(invoices);
+      if (url.includes('/api/loans/borrowers')) return respond(borrowers);
+      if (url.includes('/api/loans')) return respond(loans);
       return respond({});
     }),
   );
@@ -214,5 +252,42 @@ describe('pages render with data', () => {
     fireEvent.change(await screen.findByLabelText('Subtotal'), { target: { value: '1000' } });
     expect(await screen.findByDisplayValue('$160.00')).toBeInTheDocument();
     expect(screen.getByDisplayValue('$1,160.00')).toBeInTheDocument();
+  });
+
+  it('LoansPage shows borrower tabs, ledger rows and the summary header', async () => {
+    renderPage(<LoansPage />, '/prestamos');
+    expect(await screen.findByText('OSVALDO')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Ricardo' })).toBeInTheDocument();
+    expect(screen.getByText('14-Apr')).toBeInTheDocument();
+    expect(screen.getByText('Saldo pendiente')).toBeInTheDocument();
+    // "Todos" shows the Deudor column; a borrower tab shows the running Saldo instead.
+    expect(screen.getAllByText('Ricardo').length).toBeGreaterThanOrEqual(3);
+    fireEvent.click(screen.getByRole('tab', { name: 'Ricardo' }));
+    expect(await screen.findByRole('columnheader', { name: 'Saldo' })).toBeInTheDocument();
+  });
+
+  it('LoansPage sorts rows by a clicked column', async () => {
+    renderPage(<LoansPage />, '/prestamos');
+    await screen.findByText('OSVALDO');
+    const descriptions = () =>
+      screen.getAllByRole('row').flatMap((row) => {
+        const cell = row.querySelectorAll('td')[2];
+        return cell ? [cell.textContent] : [];
+      });
+    expect(descriptions()).toEqual(['OSVALDO', 'PAGO 1', expect.anything()]);
+    const header = screen.getByRole('columnheader', { name: /Descripción/ });
+    fireEvent.click(within(header).getByRole('button'));
+    expect(header).toHaveAttribute('aria-sort', 'ascending');
+    fireEvent.click(within(header).getByRole('button'));
+    expect(header).toHaveAttribute('aria-sort', 'descending');
+    expect(descriptions().slice(0, 2)).toEqual(['PAGO 1', 'OSVALDO']);
+  });
+
+  it('LoansPage opens the entry form', async () => {
+    renderPage(<LoansPage />, '/prestamos');
+    await screen.findByText('OSVALDO');
+    fireEvent.click(screen.getByRole('button', { name: 'Nuevo movimiento' }));
+    expect(await screen.findByLabelText('Préstamo')).toBeInTheDocument();
+    expect(screen.getByLabelText('Pagado')).toBeInTheDocument();
   });
 });
