@@ -1,6 +1,13 @@
 import { AppShell, Burger, Button, Group, NavLink, Text, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconCategory, IconFileInvoice, IconHome, IconList, IconWallet } from '@tabler/icons-react';
+import {
+  IconCash,
+  IconCategory,
+  IconFileInvoice,
+  IconHome,
+  IconList,
+  IconWallet,
+} from '@tabler/icons-react';
 import { NavLink as RouterNavLink, Outlet } from 'react-router';
 import { useLogout, useMe } from '../features/auth/useAuth';
 import { DesignPicker } from '../theme/DesignPicker';
@@ -10,6 +17,7 @@ const NAV_ITEMS = [
   { to: '/', label: 'Inicio', icon: IconHome, end: true },
   { to: '/movimientos', label: 'Movimientos', icon: IconList },
   { to: '/facturas', label: 'Facturas', icon: IconFileInvoice },
+  { to: '/prestamos', label: 'Préstamos', icon: IconCash },
   { to: '/cuentas', label: 'Cuentas', icon: IconWallet },
   { to: '/categorias', label: 'Categorías', icon: IconCategory },
 ];

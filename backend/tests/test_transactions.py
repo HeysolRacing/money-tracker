@@ -76,6 +76,39 @@ async def test_filters_and_pagination(auth_client: AsyncClient, setup: dict[str,
     assert await ids(q="soriana") == ["Soriana"]
     assert await ids(uncategorized=True) == ["Sin categoría"]
 
+    # Default is newest first.
+    assert await ids() == ["Sin categoría", "Nómina", "Soriana", "Walmart"]
+    assert await ids(sort="description", order="asc") == [
+        "Nómina",
+        "Sin categoría",
+        "Soriana",
+        "Walmart",
+    ]
+    # Signed amounts: every expense is below the income.
+    assert (await ids(sort="amount", order="desc"))[0] == "Nómina"
+    # By label "Parent › Child"; uncategorized last in either direction.
+    assert await ids(sort="category", order="asc") == [
+        "Soriana",  # Alimentación
+        "Walmart",  # Alimentación › Supermercado
+        "Nómina",  # Salario
+        "Sin categoría",
+    ]
+    assert await ids(sort="category", order="desc") == [
+        "Nómina",
+        "Walmart",
+        "Soriana",
+        "Sin categoría",
+    ]
+    # BBVA rows first, newest first within the account; then Inbursa.
+    assert await ids(sort="account", order="asc") == [
+        "Sin categoría",
+        "Nómina",
+        "Walmart",
+        "Soriana",
+    ]
+    res = await auth_client.get("/api/transactions", params={"sort": "nope"})
+    assert res.status_code == 422
+
     page = (await auth_client.get("/api/transactions", params={"limit": 2})).json()
     assert page["total"] == 4
     assert len(page["items"]) == 2

@@ -16,15 +16,33 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 import { IconPencil, IconPlus, IconSearch, IconTrash } from '@tabler/icons-react';
 import dayjs from 'dayjs';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Schemas } from '../api/client';
 import { useDeleteInvoice, useInvoices, useSaveInvoice } from '../features/invoices/api';
 import { InvoiceFormModal } from '../features/invoices/InvoiceFormModal';
 import { InvoiceSummaryCards } from '../features/invoices/InvoiceSummaryCards';
+import { SortableTh } from '../components/SortableTh';
 import { formatDayMonth } from '../lib/dates';
-import { formatMoney } from '../lib/money';
+import { formatMoney, toCents } from '../lib/money';
+import { sortItems, toggleSort, type SortState } from '../lib/sort';
 
 type Invoice = Schemas['InvoiceOut'];
+type SortKey =
+  'application_date' | 'concept' | 'subtotal' | 'iva' | 'total' | 'is_invoiced' | 'is_extra';
+
+// The API returns newest first.
+const DEFAULT_SORT: SortState<SortKey> = { key: 'application_date', order: 'desc' };
+
+function sortValue(invoice: Invoice, key: SortKey) {
+  switch (key) {
+    case 'subtotal':
+    case 'iva':
+    case 'total':
+      return toCents(invoice[key]);
+    default:
+      return invoice[key];
+  }
+}
 
 const MONTHS = [
   'Enero',
@@ -147,6 +165,10 @@ function InvoicesTable({
 }) {
   const save = useSaveInvoice();
   const remove = useDeleteInvoice();
+  const [sort, setSort] = useState(DEFAULT_SORT);
+  const sorted = useMemo(() => sortItems(items, sort, sortValue), [items, sort]);
+  const onSort = (key: SortKey) => setSort((s) => toggleSort(s, key));
+  const th = { sort, onSort };
 
   function confirmDelete(invoice: Invoice) {
     modals.openConfirmModal({
@@ -171,18 +193,32 @@ function InvoicesTable({
       <Table highlightOnHover striped verticalSpacing="xs">
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Fecha Aplicación</Table.Th>
-            <Table.Th>Concepto</Table.Th>
-            <Table.Th ta="right">Subtotal</Table.Th>
-            <Table.Th ta="right">I.V.A</Table.Th>
-            <Table.Th ta="right">Total</Table.Th>
-            <Table.Th ta="center">Facturado</Table.Th>
-            <Table.Th ta="center">Extra</Table.Th>
+            <SortableTh sortKey="application_date" {...th}>
+              Fecha Aplicación
+            </SortableTh>
+            <SortableTh sortKey="concept" {...th}>
+              Concepto
+            </SortableTh>
+            <SortableTh sortKey="subtotal" ta="right" {...th}>
+              Subtotal
+            </SortableTh>
+            <SortableTh sortKey="iva" ta="right" {...th}>
+              I.V.A
+            </SortableTh>
+            <SortableTh sortKey="total" ta="right" {...th}>
+              Total
+            </SortableTh>
+            <SortableTh sortKey="is_invoiced" ta="center" {...th}>
+              Facturado
+            </SortableTh>
+            <SortableTh sortKey="is_extra" ta="center" {...th}>
+              Extra
+            </SortableTh>
             <Table.Th w={80} />
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {items.map((invoice) => (
+          {sorted.map((invoice) => (
             <Table.Tr key={invoice.id}>
               <Table.Td>{formatDayMonth(invoice.application_date)}</Table.Td>
               <Table.Td>{invoice.concept}</Table.Td>

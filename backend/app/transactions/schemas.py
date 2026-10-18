@@ -72,6 +72,10 @@ class TransferOut(BaseModel):
     inflow: TransactionOut
 
 
+TransactionSort = Literal["date", "description", "category", "account", "amount"]
+SortOrder = Literal["asc", "desc"]
+
+
 class TransactionFilters(BaseModel):
     account_id: int | None = None
     category_id: int | None = None
@@ -80,5 +84,7 @@ class TransactionFilters(BaseModel):
     date_from: dt.date | None = None
     date_to: dt.date | None = None
     q: str | None = None
+    sort: TransactionSort = "date"
+    order: SortOrder = "desc"
     limit: int = Field(50, ge=1, le=500)
     offset: int = Field(0, ge=0)

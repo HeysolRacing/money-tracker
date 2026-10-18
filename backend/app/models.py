@@ -5,6 +5,17 @@ from app.auth.models import User, UserSession
 from app.categories.models import Category
 from app.db import Base
 from app.invoices.models import Invoice
+from app.loans.models import Borrower, LoanEntry
 from app.transactions.models import Transaction
 
-__all__ = ["Account", "Base", "Category", "Invoice", "Transaction", "User", "UserSession"]
+__all__ = [
+    "Account",
+    "Base",
+    "Borrower",
+    "Category",
+    "Invoice",
+    "LoanEntry",
+    "Transaction",
+    "User",
+    "UserSession",
+]

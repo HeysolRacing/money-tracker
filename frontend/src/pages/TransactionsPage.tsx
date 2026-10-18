@@ -26,6 +26,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import type { Schemas } from '../api/client';
+import { SortableTh } from '../components/SortableTh';
 import { useAccounts } from '../features/accounts/api';
 import { AccountSelect } from '../features/accounts/AccountSelect';
 import { categoryLabel, useCategories } from '../features/categories/api';
@@ -39,8 +40,14 @@ import { TransactionFormModal } from '../features/transactions/TransactionFormMo
 import { TransferFormModal } from '../features/transactions/TransferFormModal';
 import { formatDate } from '../lib/dates';
 import { formatMoney } from '../lib/money';
+import { toggleSort, type SortState } from '../lib/sort';
 
 type Transaction = Schemas['TransactionOut'];
+type SortKey = NonNullable<TransactionFilters['sort']>;
+
+const SORT_KEYS: SortKey[] = ['date', 'description', 'category', 'account', 'amount'];
+// The API's default; it is left out of the URL.
+const DEFAULT_SORT: SortState<SortKey> = { key: 'date', order: 'desc' };
 
 const PAGE_SIZE = 50;
 const UNCATEGORIZED = 'none';
@@ -78,9 +85,15 @@ function useFilterParams() {
     from: params.get('from'),
     to: params.get('to'),
     q: params.get('q') ?? '',
+    sort: parseSort(params.get('sort'), params.get('order')),
     page: num('page') ?? 1,
     set,
   };
+}
+
+function parseSort(key: string | null, order: string | null): SortState<SortKey> {
+  if (!SORT_KEYS.includes(key as SortKey)) return DEFAULT_SORT;
+  return { key: key as SortKey, order: order === 'desc' ? 'desc' : 'asc' };
 }
 
 export function TransactionsPage() {
@@ -104,6 +117,8 @@ export function TransactionsPage() {
     date_from: f.from,
     date_to: f.to,
     q: f.q || null,
+    sort: f.sort.key,
+    order: f.sort.order,
     limit: PAGE_SIZE,
     offset: (f.page - 1) * PAGE_SIZE,
   };
@@ -166,7 +181,17 @@ export function TransactionsPage() {
         </SimpleGrid>
       </Card>
 
-      <TransactionsTable items={data?.items ?? []} loading={isFetching} onEdit={openForm} />
+      <TransactionsTable
+        items={data?.items ?? []}
+        loading={isFetching}
+        sort={f.sort}
+        onSort={(key) => {
+          const next = toggleSort(f.sort, key);
+          const isDefault = next.key === DEFAULT_SORT.key && next.order === DEFAULT_SORT.order;
+          f.set(isDefault ? { sort: null, order: null } : { sort: next.key, order: next.order });
+        }}
+        onEdit={openForm}
+      />
 
       <Group justify="space-between">
         <Text size="sm" c="dimmed">
@@ -223,12 +248,17 @@ function CategoryFilter({
 function TransactionsTable({
   items,
   loading,
+  sort,
+  onSort,
   onEdit,
 }: {
   items: Transaction[];
   loading: boolean;
+  sort: SortState<SortKey>;
+  onSort: (key: SortKey) => void;
   onEdit: (t: Transaction) => void;
 }) {
+  const th = { sort, onSort };
   const { data: accounts = [] } = useAccounts(true);
   const { data: categories = [] } = useCategories();
   const remove = useDeleteTransaction();
@@ -265,11 +295,21 @@ function TransactionsTable({
       <Table highlightOnHover verticalSpacing="xs" style={{ opacity: loading ? 0.6 : 1 }}>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Fecha</Table.Th>
-            <Table.Th>Descripción</Table.Th>
-            <Table.Th>Categoría</Table.Th>
-            <Table.Th>Cuenta</Table.Th>
-            <Table.Th ta="right">Monto</Table.Th>
+            <SortableTh sortKey="date" {...th}>
+              Fecha
+            </SortableTh>
+            <SortableTh sortKey="description" {...th}>
+              Descripción
+            </SortableTh>
+            <SortableTh sortKey="category" {...th}>
+              Categoría
+            </SortableTh>
+            <SortableTh sortKey="account" {...th}>
+              Cuenta
+            </SortableTh>
+            <SortableTh sortKey="amount" ta="right" {...th}>
+              Monto
+            </SortableTh>
             <Table.Th w={80} />
           </Table.Tr>
         </Table.Thead>
