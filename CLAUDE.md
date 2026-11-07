@@ -27,9 +27,7 @@ Everything runs in Docker. On Windows Git Bash, prefix `docker compose exec/run`
   - `pytest`; a single test with `pytest tests/test_auth.py::test_login_me_logout`
   - `ruff check .`, `ruff format .`, `mypy app` (strict)
   - `alembic revision --autogenerate -m "..."`, then `alembic upgrade head`
-- Frontend, run on the host in `frontend/`:
-  - `npm test`; a single test with `npx vitest run tests/money.test.ts -t "name"`
-  - `npm run typecheck`, `npm run lint`, `npm run build`
+- Frontend `npm` scripts run on the host in `frontend/`, not in Docker.
 - **After adding or changing frontend dependencies, run `docker compose restart web`.** The dev web container keeps its own `node_modules` volume and only runs `npm ci` on start; without a restart the page breaks with "Failed to resolve import".
 - `npm run gen:api` — regenerates `src/api/schema.d.ts` from the running API's OpenAPI. **Run it after any backend schema/route change** and commit the result.
 - Backend dependencies: edit `backend/pyproject.toml`, then rebuild the image (`docker compose build api`). `uv` isn't installed on the host; to refresh `uv.lock`, run uv in a container:
@@ -42,8 +40,6 @@ Everything runs in Docker. On Windows Git Bash, prefix `docker compose exec/run`
 
 - **API contract flows backend → frontend.** Pydantic schemas in FastAPI produce the OpenAPI schema. `openapi-typescript` generates `frontend/src/api/schema.d.ts`, and `src/api/client.ts` exposes the typed `api` client (openapi-fetch) plus `unwrap()`. `unwrap()` turns the backend error body into `ApiRequestError`. Operation ids are `<tag>-<function name>` (see `_operation_id` in `app/main.py`).
 - **Backend** (`backend/app/`):
-  - One package per feature (`auth/`, later `accounts/`, `transactions/`, …), each with `models.py`, `schemas.py`, `service.py`, `router.py`.
-  - Routers are mounted under `/api` in `main.py`.
   - **Every new models module must be imported in `app/models.py`**, or Alembic autogenerate and the test schema won't see it.
   - Errors: raise `AppError` (`app/errors.py`). All errors, including validation errors, render as `{"error": {"code", "message", "details?"}}`, with Spanish messages.
   - Dependencies: `DbSession` and `CurrentUser` from `app/deps.py`. Every non-auth route should depend on `CurrentUser`.
@@ -56,9 +52,7 @@ Everything runs in Docker. On Windows Git Bash, prefix `docker compose exec/run`
   - Every owned row has `user_id`; fetch by id with `get_owned()` (`app/common/crud.py`), which returns 404 for other users' rows.
   - New users get the default Spanish categories (`categories/defaults.py`). For existing users: `python -m app.cli seed-categories --email ...`.
 - **Invoices** (`invoices/`): a simple user-defined record that replaces the richer model in the original plan.
-  - Columns: Fecha Aplicación, Concepto, Subtotal, I.V.A, Facturado, Extra.
   - **Total is never stored**: it is a Pydantic `computed_field` (subtotal + iva).
-  - `GET /api/invoices` returns `{items, summary}`. The summary (all / invoiced / pending / extra) follows the same filters, and the page header renders it.
   - The UI shows dates as `DD-MMM` in English ("22-Aug"), and I.V.A defaults to 16% of the subtotal until edited by hand.
 - **Auth:** a single user created via `python -m app.cli create-user` (there is no signup endpoint). The session is a random token in the httpOnly cookie `mt_session`; only its SHA-256 is stored in `sessions`.
 - **Tests:**
@@ -66,10 +60,7 @@ Everything runs in Docker. On Windows Git Bash, prefix `docker compose exec/run`
   - `conftest.py` sets `DATABASE_URL` before importing the app, creates the schema from metadata (not migrations), and truncates all tables after each test.
   - Use the `auth_client` fixture for authenticated requests.
 - **Frontend:**
-  - Feature folders under `src/features/<feature>/`: TanStack Query hooks and components.
-  - Pages under `src/pages/`, routes in `src/router.tsx`. All routes except `/login` are wrapped in `RequireAuth`.
   - Add sidebar sections to `NAV_ITEMS` in `src/components/Layout.tsx`.
-  - Uses Mantine 9 components. dayjs and Mantine dates use the `es-mx` locale.
 
 ## Conventions
 

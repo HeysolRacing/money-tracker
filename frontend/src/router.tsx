@@ -5,6 +5,7 @@ import { AccountsPage } from './pages/AccountsPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { HomePage } from './pages/HomePage';
 import { InvoicesPage } from './pages/InvoicesPage';
+import { InvestmentsPage } from './pages/InvestmentsPage';
 import { LoansPage } from './pages/LoansPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
       { path: '/movimientos', element: <TransactionsPage /> },
       { path: '/facturas', element: <InvoicesPage /> },
       { path: '/prestamos', element: <LoansPage /> },
+      { path: '/inversiones', element: <InvestmentsPage /> },
       { path: '/cuentas', element: <AccountsPage /> },
       { path: '/categorias', element: <CategoriesPage /> },
       { path: '*', element: <NotFoundPage /> },
