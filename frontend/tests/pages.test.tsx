@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccountsPage } from '../src/pages/AccountsPage';
 import { CategoriesPage } from '../src/pages/CategoriesPage';
 import { HomePage } from '../src/pages/HomePage';
+import { InvestmentsPage } from '../src/pages/InvestmentsPage';
 import { InvoicesPage } from '../src/pages/InvoicesPage';
 import { LoansPage } from '../src/pages/LoansPage';
 import { TransactionsPage } from '../src/pages/TransactionsPage';
@@ -156,6 +157,130 @@ const loans = {
   summary: loanTotals('10999.00', '914.00', '10085.00', '0.00'),
 };
 
+const withMonths = (values: (string | null)[]) =>
+  [...values, ...Array<string | null>(12).fill(null)].slice(0, 12);
+
+const investmentGrid = {
+  year: 2026,
+  years: [2026],
+  items: [
+    {
+      id: 1,
+      name: 'OPENBANK',
+      group: 'main',
+      months: withMonths(['871865.92', '848646.32', '0.00']),
+      term_count: 2,
+      active_terms: 1,
+    },
+    {
+      id: 2,
+      name: 'MIFEL',
+      group: 'main',
+      months: withMonths([null, '429762.73']),
+      term_count: 0,
+      active_terms: 0,
+    },
+    {
+      id: 3,
+      name: 'INFONAVIT',
+      group: 'occasional',
+      months: withMonths(['10000.00']),
+      term_count: 0,
+      active_terms: 0,
+    },
+  ],
+  totals: {
+    main: withMonths(['871865.92', '1278409.05', '0.00']),
+    occasional: withMonths(['10000.00']),
+    overall: withMonths(['881865.92', '1278409.05', '0.00']),
+  },
+  summary: {
+    as_of_month: 2,
+    current_total: '1278409.05',
+    previous_total: '881865.92',
+    monthly_change: '396543.13',
+    first_total: '881865.92',
+    year_change: '396543.13',
+    interest_earned: '2400.00',
+    active_principal: '102400.00',
+    expected_interest: '2944.00',
+    active_terms: 1,
+  },
+};
+
+const term = (
+  id: number,
+  start: string,
+  end: string,
+  amount: string,
+  rate: string,
+  interest: string,
+  status: string,
+) => ({
+  id,
+  investment_id: 1,
+  start_date: start,
+  end_date: end,
+  days: 90,
+  amount,
+  annual_rate: rate,
+  isr_withheld: '0.00',
+  notes: null,
+  interest,
+  net_interest: interest,
+  final_amount: (Number(amount) + Number(interest)).toFixed(2),
+  status,
+});
+
+const investmentTerms = {
+  items: [
+    term(1, '2026-01-01', '2026-04-01', '100000.00', '10', '2500.00', 'matured'),
+    term(2, '2026-04-01', '2026-06-30', '102500.00', '11.5', '2946.88', 'active'),
+  ],
+  totals: {
+    count: 2,
+    active: 1,
+    running: 1,
+    invested: '102500.00',
+    invested_at_maturity: '105446.88',
+    net_interest: '2500.00',
+    expected_interest: '2946.88',
+  },
+};
+
+const investmentDashboard = {
+  history: [
+    { year: 2026, month: 1, main: '871865.92', occasional: '10000.00', total: '881865.92' },
+    { year: 2026, month: 2, main: '1278409.05', occasional: '0.00', total: '1278409.05' },
+  ],
+  forecast: [{ year: 2026, month: 3, total: '1674952.18' }],
+  trend: { months_used: 2, monthly_growth: '396543.13', projected_year_end: '5244840.35' },
+  maturities: [
+    {
+      term_id: 2,
+      investment_id: 1,
+      investment_name: 'OPENBANK',
+      end_date: '2026-06-30',
+      days_left: 20,
+      amount: '102500.00',
+      annual_rate: '11.5',
+      net_interest: '2946.88',
+      final_amount: '105446.88',
+    },
+  ],
+  terms_projection: { horizon: '2027-01-01', principal: '102500.00', projected_value: '114000.00' },
+  growth: [
+    {
+      id: 1,
+      name: 'OPENBANK',
+      group: 'main',
+      first: '871865.92',
+      latest: '848646.32',
+      change: '-23219.60',
+    },
+  ],
+};
+
 function respond(body: unknown) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -174,6 +299,9 @@ beforeEach(() => {
       if (url.includes('/api/invoices')) return respond(invoices);
       if (url.includes('/api/loans/borrowers')) return respond(borrowers);
       if (url.includes('/api/loans')) return respond(loans);
+      if (url.includes('/api/investments/dashboard')) return respond(investmentDashboard);
+      if (url.includes('/terms')) return respond(investmentTerms);
+      if (url.includes('/api/investments')) return respond(investmentGrid);
       return respond({});
     }),
   );
@@ -289,5 +417,47 @@ describe('pages render with data', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Nuevo movimiento' }));
     expect(await screen.findByLabelText('Préstamo')).toBeInTheDocument();
     expect(screen.getByLabelText('Pagado')).toBeInTheDocument();
+  });
+  it('InvestmentsPage shows the grid like the spreadsheet', async () => {
+    renderPage(<InvestmentsPage />, '/inversiones');
+    expect(await screen.findByText('OPENBANK')).toBeInTheDocument();
+    expect(screen.getByText('Inversiones ocasionales')).toBeInTheDocument();
+    expect(screen.getByText('Resumen')).toBeInTheDocument();
+    expect(screen.getByText('Total (FEB)')).toBeInTheDocument();
+    // An explicit zero shows as "$0.00" (a blank cell stays empty).
+    expect(screen.getAllByText('$0.00').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('$ -')).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /ENE/ })).toBeInTheDocument();
+  });
+
+  it('InvestmentsPage edits a month in place', async () => {
+    renderPage(<InvestmentsPage />, '/inversiones');
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar MIFEL, ENE' }));
+    expect(await screen.findByLabelText('MIFEL, ENE')).toBeInTheDocument();
+  });
+
+  it('InvestmentsPage opens the details of an investment', async () => {
+    renderPage(<InvestmentsPage />, '/inversiones');
+    await screen.findByText('OPENBANK');
+    const row = screen.getByText('OPENBANK').closest('tr')!;
+    fireEvent.click(within(row).getByRole('button', { name: /Detalles/ }));
+    expect(await screen.findByText('Plazos · OPENBANK')).toBeInTheDocument();
+    expect(await screen.findByText('11.5%')).toBeInTheDocument();
+    expect(screen.getByText('Monto invertido')).toBeInTheDocument();
+    expect(screen.getByText('$102,500.00', { selector: 'p' })).toBeInTheDocument();
+    // Each term can be renewed; renew the active one.
+    const active = screen.getByText('11.5%').closest('tr')!;
+    fireEvent.click(within(active).getByRole('button', { name: 'Renovar' }));
+    // A renewal starts with the previous amount plus interest.
+    expect(await screen.findByDisplayValue('$105,446.88')).toBeInTheDocument();
+  });
+
+  it('InvestmentsPage shows the dashboard', async () => {
+    renderPage(<InvestmentsPage />, '/inversiones?vista=dashboard');
+    expect(await screen.findByText('Crecimiento y pronóstico')).toBeInTheDocument();
+    expect(screen.getByText('Próximos vencimientos')).toBeInTheDocument();
+    expect(screen.getByText('Proyección a diciembre')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Ver datos'));
+    expect(await screen.findByText('$1,674,952.18')).toBeInTheDocument();
   });
 });

@@ -307,6 +307,112 @@ export interface paths {
         patch: operations["loans-update_entry"];
         trace?: never;
     };
+    "/api/investments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Grid */
+        get: operations["investments-get_grid"];
+        put?: never;
+        /** Create Investment */
+        post: operations["investments-create_investment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/investments/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Dashboard */
+        get: operations["investments-get_dashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/investments/{investment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Investment */
+        delete: operations["investments-delete_investment"];
+        options?: never;
+        head?: never;
+        /** Update Investment */
+        patch: operations["investments-update_investment"];
+        trace?: never;
+    };
+    "/api/investments/{investment_id}/balances/{year}/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Balance */
+        put: operations["investments-set_balance"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/investments/{investment_id}/terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Terms */
+        get: operations["investments-list_terms"];
+        put?: never;
+        /** Create Term */
+        post: operations["investments-create_term"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/investments/terms/{term_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Term */
+        delete: operations["investments-delete_term"];
+        options?: never;
+        head?: never;
+        /** Update Term */
+        patch: operations["investments-update_term"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -399,6 +505,22 @@ export interface components {
             /** Total */
             total: string;
         };
+        /** BalanceOut */
+        BalanceOut: {
+            /** Investment Id */
+            investment_id: number;
+            /** Year */
+            year: number;
+            /** Month */
+            month: number;
+            /** Amount */
+            amount: string | null;
+        };
+        /** BalanceSet */
+        BalanceSet: {
+            /** Amount */
+            amount: number | string | null;
+        };
         /** BorrowerCreate */
         BorrowerCreate: {
             /** Name */
@@ -453,10 +575,132 @@ export interface components {
             /** Color */
             color?: string | null;
         };
+        /** Dashboard */
+        Dashboard: {
+            /** History */
+            history: components["schemas"]["MonthPoint"][];
+            /** Forecast */
+            forecast: components["schemas"]["ForecastPoint"][];
+            trend: components["schemas"]["Trend"] | null;
+            /** Maturities */
+            maturities: components["schemas"]["Maturity"][];
+            terms_projection: components["schemas"]["TermsProjection"];
+            /** Growth */
+            growth: components["schemas"]["InvestmentGrowth"][];
+        };
+        /** ForecastPoint */
+        ForecastPoint: {
+            /** Year */
+            year: number;
+            /** Month */
+            month: number;
+            /** Total */
+            total: string;
+        };
+        /**
+         * GridSummary
+         * @description Header cards. `as_of_month` is the latest month with data that isn't in the future.
+         */
+        GridSummary: {
+            /** As Of Month */
+            as_of_month: number | null;
+            /** Current Total */
+            current_total: string | null;
+            /** Monthly Change */
+            monthly_change: string | null;
+            /** Previous Total */
+            previous_total: string | null;
+            /** Year Change */
+            year_change: string | null;
+            /** First Total */
+            first_total: string | null;
+            /** Interest Earned */
+            interest_earned: string;
+            /** Active Principal */
+            active_principal: string;
+            /** Expected Interest */
+            expected_interest: string;
+            /** Active Terms */
+            active_terms: number;
+        };
+        /** GridTotals */
+        GridTotals: {
+            /** Main */
+            main: (string | null)[];
+            /** Occasional */
+            occasional: (string | null)[];
+            /** Overall */
+            overall: (string | null)[];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** InvestmentCreate */
+        InvestmentCreate: {
+            /** Name */
+            name: string;
+            /** @default main */
+            group: components["schemas"]["InvestmentGroup"];
+        };
+        /** InvestmentGrid */
+        InvestmentGrid: {
+            /** Year */
+            year: number;
+            /** Years */
+            years: number[];
+            /** Items */
+            items: components["schemas"]["InvestmentRow"][];
+            totals: components["schemas"]["GridTotals"];
+            summary: components["schemas"]["GridSummary"];
+        };
+        /**
+         * InvestmentGroup
+         * @enum {string}
+         */
+        InvestmentGroup: "main" | "occasional";
+        /** InvestmentGrowth */
+        InvestmentGrowth: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            group: components["schemas"]["InvestmentGroup"];
+            /** First */
+            first: string | null;
+            /** Latest */
+            latest: string | null;
+            /** Change */
+            change: string | null;
+        };
+        /** InvestmentOut */
+        InvestmentOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            group: components["schemas"]["InvestmentGroup"];
+        };
+        /** InvestmentRow */
+        InvestmentRow: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            group: components["schemas"]["InvestmentGroup"];
+            /** Months */
+            months: (string | null)[];
+            /** Term Count */
+            term_count: number;
+            /** Active Terms */
+            active_terms: number;
+        };
+        /** InvestmentUpdate */
+        InvestmentUpdate: {
+            /** Name */
+            name?: string | null;
+            group?: components["schemas"]["InvestmentGroup"] | null;
         };
         /** InvoiceCreate */
         InvoiceCreate: {
@@ -619,6 +863,165 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** Maturity */
+        Maturity: {
+            /** Term Id */
+            term_id: number;
+            /** Investment Id */
+            investment_id: number;
+            /** Investment Name */
+            investment_name: string;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /** Days Left */
+            days_left: number;
+            /** Amount */
+            amount: string;
+            /** Annual Rate */
+            annual_rate: string;
+            /** Net Interest */
+            net_interest: string;
+            /** Final Amount */
+            final_amount: string;
+        };
+        /** MonthPoint */
+        MonthPoint: {
+            /** Year */
+            year: number;
+            /** Month */
+            month: number;
+            /** Main */
+            main: string;
+            /** Occasional */
+            occasional: string;
+            /** Total */
+            total: string;
+        };
+        /** TermCreate */
+        TermCreate: {
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /** Days */
+            days: number;
+            /** Amount */
+            amount: number | string;
+            /** Annual Rate */
+            annual_rate: number | string;
+            /**
+             * Isr Withheld
+             * @default 0
+             */
+            isr_withheld: number | string;
+            /** Notes */
+            notes?: string | null;
+        };
+        /** TermList */
+        TermList: {
+            /** Items */
+            items: components["schemas"]["TermOut"][];
+            totals: components["schemas"]["TermTotals"];
+        };
+        /**
+         * TermOut
+         * @description A term with its derived figures. Interest = amount × rate × days / 360.
+         */
+        TermOut: {
+            /** Id */
+            id: number;
+            /** Investment Id */
+            investment_id: number;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /** Days */
+            days: number;
+            /** Amount */
+            amount: string;
+            /** Annual Rate */
+            annual_rate: string;
+            /** Isr Withheld */
+            isr_withheld: string;
+            /** Notes */
+            notes: string | null;
+            /**
+             * End Date
+             * Format: date
+             */
+            readonly end_date: string;
+            /** Interest */
+            readonly interest: string;
+            /** Net Interest */
+            readonly net_interest: string;
+            /**
+             * Final Amount
+             * @description What the next term would start with when renewed.
+             */
+            readonly final_amount: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            readonly status: "scheduled" | "active" | "matured";
+        };
+        /**
+         * TermTotals
+         * @description Totals over one investment's terms. Terms can run in parallel (several deposits at
+         *     once), so the invested amount is the sum of every term that hasn't matured.
+         */
+        TermTotals: {
+            /** Count */
+            count: number;
+            /** Active */
+            active: number;
+            /** Running */
+            running: number;
+            /** Invested */
+            invested: string;
+            /** Invested At Maturity */
+            invested_at_maturity: string;
+            /** Net Interest */
+            net_interest: string;
+            /** Expected Interest */
+            expected_interest: string;
+        };
+        /** TermUpdate */
+        TermUpdate: {
+            /** Start Date */
+            start_date?: string | null;
+            /** Days */
+            days?: number | null;
+            /** Amount */
+            amount?: number | string | null;
+            /** Annual Rate */
+            annual_rate?: number | string | null;
+            /** Isr Withheld */
+            isr_withheld?: number | string | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /**
+         * TermsProjection
+         * @description Running terms renewed at the same rate and length until the horizon.
+         */
+        TermsProjection: {
+            /**
+             * Horizon
+             * Format: date
+             */
+            horizon: string;
+            /** Principal */
+            principal: string;
+            /** Projected Value */
+            projected_value: string;
+        };
         /** TransactionCreate */
         TransactionCreate: {
             /** Account Id */
@@ -729,6 +1132,15 @@ export interface components {
         TransferOut: {
             outflow: components["schemas"]["TransactionOut"];
             inflow: components["schemas"]["TransactionOut"];
+        };
+        /** Trend */
+        Trend: {
+            /** Months Used */
+            months_used: number;
+            /** Monthly Growth */
+            monthly_growth: string;
+            /** Projected Year End */
+            projected_year_end: string | null;
         };
         /** UserOut */
         UserOut: {
@@ -1793,6 +2205,350 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoanEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "investments-get_grid": {
+        parameters: {
+            query?: {
+                year?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvestmentGrid"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "investments-create_investment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvestmentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvestmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "investments-get_dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dashboard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "investments-delete_investment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                investment_id: number;
+            };
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "investments-update_investment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                investment_id: number;
+            };
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvestmentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvestmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "investments-set_balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                investment_id: number;
+                year: number;
+                month: number;
+            };
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BalanceSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BalanceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "investments-list_terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                investment_id: number;
+            };
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "investments-create_term": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                investment_id: number;
+            };
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TermCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "investments-delete_term": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                term_id: number;
+            };
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "investments-update_term": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                term_id: number;
+            };
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TermUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermOut"];
                 };
             };
             /** @description Validation Error */
