@@ -47,3 +47,7 @@ class Transaction(TimestampMixin, Base):
     transfer_peer_id: Mapped[int | None] = mapped_column(
         ForeignKey("transactions.id", ondelete="SET NULL")
     )
+    # The statement PDF this row was loaded from (both rows of an imported transfer).
+    statement_import_id: Mapped[int | None] = mapped_column(
+        ForeignKey("statement_imports.id", ondelete="SET NULL"), index=True
+    )

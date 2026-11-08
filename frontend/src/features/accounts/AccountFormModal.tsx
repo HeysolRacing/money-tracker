@@ -6,11 +6,18 @@ import {
   Select,
   SimpleGrid,
   Stack,
+  TagsInput,
   TextInput,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import type { Schemas } from '../../api/client';
-import { ACCOUNT_TYPE_LABELS, BANKS, CURRENCIES, toSelectData } from '../../lib/labels';
+import {
+  ACCOUNT_TYPE_LABELS,
+  BANKS,
+  CURRENCIES,
+  STATEMENT_FORMAT_LABELS,
+  toSelectData,
+} from '../../lib/labels';
 import { useSaveAccount } from './api';
 
 type Account = Schemas['AccountOut'];
@@ -41,6 +48,8 @@ function AccountForm({ account, onDone }: { account?: Account; onDone: () => voi
       credit_limit: account?.credit_limit ?? '',
       statement_day: account?.statement_day ?? '',
       payment_due_day: account?.payment_due_day ?? '',
+      statement_format: account?.statement_format ?? null,
+      card_endings: account?.card_endings ?? [],
     } as {
       name: string;
       bank: string | null;
@@ -50,9 +59,19 @@ function AccountForm({ account, onDone }: { account?: Account; onDone: () => voi
       credit_limit: string | number;
       statement_day: string | number;
       payment_due_day: string | number;
+      statement_format: Schemas['StatementFormat'] | null;
+      card_endings: string[];
     },
     validate: {
       name: (v) => (v.trim() ? null : 'Escribe un nombre'),
+      card_endings: (v, values) =>
+        !values.statement_format
+          ? null
+          : v.length === 0
+            ? 'Agrega al menos una terminación'
+            : v.every((e) => /^\d{4}$/.test(e))
+              ? null
+              : 'Cada terminación son 4 dígitos',
     },
   });
   const isCard = form.values.type === 'credit_card';
@@ -68,6 +87,8 @@ function AccountForm({ account, onDone }: { account?: Account; onDone: () => voi
       credit_limit: isCard && values.credit_limit !== '' ? String(values.credit_limit) : null,
       statement_day: isCard ? optionalNumber(values.statement_day) : null,
       payment_due_day: isCard ? optionalNumber(values.payment_due_day) : null,
+      statement_format: values.statement_format,
+      card_endings: values.statement_format ? values.card_endings : null,
     };
     save.mutate({ id: account?.id, body }, { onSuccess: onDone });
   }
@@ -129,6 +150,24 @@ function AccountForm({ account, onDone }: { account?: Account; onDone: () => voi
             />
           </SimpleGrid>
         )}
+        <SimpleGrid cols={{ base: 1, xs: 2 }}>
+          <Select
+            label="Carga masiva (formato)"
+            placeholder="Sin carga masiva"
+            description="Formato del PDF del estado de cuenta"
+            data={toSelectData(STATEMENT_FORMAT_LABELS)}
+            clearable
+            {...form.getInputProps('statement_format')}
+          />
+          {form.values.statement_format && (
+            <TagsInput
+              label="Terminaciones de tarjeta o cuenta"
+              description="Últimos 4 dígitos: tarjeta física, digital o número de cuenta"
+              placeholder="0739"
+              {...form.getInputProps('card_endings')}
+            />
+          )}
+        </SimpleGrid>
         <Group justify="flex-end">
           <Button type="submit" loading={save.isPending}>
             Guardar

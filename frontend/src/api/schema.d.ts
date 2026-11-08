@@ -413,6 +413,77 @@ export interface paths {
         patch: operations["investments-update_term"];
         trace?: never;
     };
+    "/api/statements/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Statement
+         * @description Reads the PDF without saving anything (the file itself is never stored).
+         */
+        post: operations["statements-preview_statement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/statements/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Statement */
+        post: operations["statements-import_statement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/statements/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Imports */
+        get: operations["statements-list_imports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/statements/imports/{import_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Import */
+        delete: operations["statements-delete_import"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -441,6 +512,9 @@ export interface components {
             statement_day?: number | null;
             /** Payment Due Day */
             payment_due_day?: number | null;
+            statement_format?: components["schemas"]["StatementFormat"] | null;
+            /** Card Endings */
+            card_endings?: string[] | null;
         };
         /** AccountOut */
         AccountOut: {
@@ -466,6 +540,9 @@ export interface components {
             statement_day: number | null;
             /** Payment Due Day */
             payment_due_day: number | null;
+            statement_format: components["schemas"]["StatementFormat"] | null;
+            /** Card Endings */
+            card_endings: string[] | null;
             /** Balance */
             balance: string;
         };
@@ -493,6 +570,9 @@ export interface components {
             statement_day?: number | null;
             /** Payment Due Day */
             payment_due_day?: number | null;
+            statement_format?: components["schemas"]["StatementFormat"] | null;
+            /** Card Endings */
+            card_endings?: string[] | null;
         };
         /** AmountSummary */
         AmountSummary: {
@@ -520,6 +600,13 @@ export interface components {
         BalanceSet: {
             /** Amount */
             amount: number | string | null;
+        };
+        /** Body_statements-preview_statement */
+        "Body_statements-preview_statement": {
+            /** Account Id */
+            account_id: number;
+            /** File */
+            file: string;
         };
         /** BorrowerCreate */
         BorrowerCreate: {
@@ -899,6 +986,130 @@ export interface components {
             occasional: string;
             /** Total */
             total: string;
+        };
+        /**
+         * RowKind
+         * @enum {string}
+         */
+        RowKind: "expense" | "income" | "payment" | "transfer_out" | "transfer_in";
+        /**
+         * StatementFormat
+         * @description Layout of the PDF statements an account can bulk-import (see app/statements).
+         * @enum {string}
+         */
+        StatementFormat: "bbva_oro" | "bbva_azul";
+        /** StatementImportCreate */
+        StatementImportCreate: {
+            /** Account Id */
+            account_id: number;
+            /**
+             * Period Start
+             * Format: date
+             */
+            period_start: string;
+            /**
+             * Period End
+             * Format: date
+             */
+            period_end: string;
+            /** File Sha256 */
+            file_sha256: string;
+            /** Payment Source Account Id */
+            payment_source_account_id?: number | null;
+            /** Rows */
+            rows: components["schemas"]["StatementImportRow"][];
+        };
+        /** StatementImportOut */
+        StatementImportOut: {
+            /** Id */
+            id: number;
+            /** Account Id */
+            account_id: number;
+            /**
+             * Period Start
+             * Format: date
+             */
+            period_start: string;
+            /**
+             * Period End
+             * Format: date
+             */
+            period_end: string;
+            /** Row Count */
+            row_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** StatementImportResult */
+        StatementImportResult: {
+            /** Id */
+            id: number;
+            /** Created */
+            created: number;
+        };
+        /** StatementImportRow */
+        StatementImportRow: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Description */
+            description: string;
+            /** Amount */
+            amount: number | string;
+            kind: components["schemas"]["RowKind"];
+            /** Card Ending */
+            card_ending: string | null;
+            /** Notes */
+            notes: string | null;
+            /** Category Id */
+            category_id?: number | null;
+            /** Counterpart Account Id */
+            counterpart_account_id?: number | null;
+        };
+        /** StatementPreview */
+        StatementPreview: {
+            /**
+             * Period Start
+             * Format: date
+             */
+            period_start: string;
+            /**
+             * Period End
+             * Format: date
+             */
+            period_end: string;
+            /** Card Ending */
+            card_ending: string;
+            /** File Sha256 */
+            file_sha256: string;
+            /** Rows */
+            rows: components["schemas"]["StatementPreviewRow"][];
+            /** Warnings */
+            warnings: string[];
+        };
+        /** StatementPreviewRow */
+        StatementPreviewRow: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Description */
+            description: string;
+            /** Amount */
+            amount: string;
+            kind: components["schemas"]["RowKind"];
+            /** Card Ending */
+            card_ending: string | null;
+            /** Notes */
+            notes: string | null;
+            /** Skip Reason */
+            skip_reason: string | null;
         };
         /** TermCreate */
         TermCreate: {
@@ -2550,6 +2761,140 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TermOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "statements-preview_statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_statements-preview_statement"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "statements-import_statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatementImportCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementImportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "statements-list_imports": {
+        parameters: {
+            query?: {
+                account_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementImportOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "statements-delete_import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                import_id: number;
+            };
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

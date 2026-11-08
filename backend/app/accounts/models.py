@@ -2,6 +2,7 @@ from decimal import Decimal
 from enum import StrEnum
 
 from sqlalchemy import Boolean, ForeignKey, SmallInteger, String
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.common.money import MONEY_SQL
@@ -14,6 +15,13 @@ class AccountType(StrEnum):
     CASH = "cash"
     SAVINGS = "savings"
     INVESTMENT = "investment"
+
+
+class StatementFormat(StrEnum):
+    """Layout of the PDF statements an account can bulk-import (see app/statements)."""
+
+    BBVA_ORO = "bbva_oro"
+    BBVA_AZUL = "bbva_azul"
 
 
 class Account(TimestampMixin, Base):
@@ -33,3 +41,8 @@ class Account(TimestampMixin, Base):
     credit_limit: Mapped[Decimal | None] = mapped_column(MONEY_SQL)
     statement_day: Mapped[int | None] = mapped_column(SmallInteger)  # fecha de corte
     payment_due_day: Mapped[int | None] = mapped_column(SmallInteger)  # fecha límite de pago
+
+    # Bulk import of PDF statements; None = not enabled for this account.
+    statement_format: Mapped[str | None] = mapped_column(String(30))
+    # Last 4 digits of the account's cards (physical and digital), checked against the PDF.
+    card_endings: Mapped[list[str] | None] = mapped_column(ARRAY(String(4)))

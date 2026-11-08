@@ -3,12 +3,13 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from app.accounts.models import AccountType
+from app.accounts.models import AccountType, StatementFormat
 from app.common.money import Money
 
 Currency = Literal["MXN", "USD"]
 DayOfMonth = Annotated[int, Field(ge=1, le=31)]
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+CardEnding = Annotated[str, StringConstraints(pattern=r"^\d{4}$")]
 
 
 class AccountCreate(BaseModel):
@@ -20,6 +21,8 @@ class AccountCreate(BaseModel):
     credit_limit: Money | None = None
     statement_day: DayOfMonth | None = None
     payment_due_day: DayOfMonth | None = None
+    statement_format: StatementFormat | None = None
+    card_endings: list[CardEnding] | None = None
 
 
 class AccountUpdate(BaseModel):
@@ -32,6 +35,8 @@ class AccountUpdate(BaseModel):
     credit_limit: Money | None = None
     statement_day: DayOfMonth | None = None
     payment_due_day: DayOfMonth | None = None
+    statement_format: StatementFormat | None = None
+    card_endings: list[CardEnding] | None = None
 
 
 class AccountOut(BaseModel):
@@ -47,5 +52,7 @@ class AccountOut(BaseModel):
     credit_limit: Money | None
     statement_day: int | None
     payment_due_day: int | None
+    statement_format: StatementFormat | None
+    card_endings: list[str] | None
     # opening_balance + inflows - outflows. Credit cards: negative = amount owed.
     balance: Money

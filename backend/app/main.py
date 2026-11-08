@@ -9,6 +9,7 @@ from app.errors import register_error_handlers
 from app.investments.router import router as investments_router
 from app.invoices.router import router as invoices_router
 from app.loans.router import router as loans_router
+from app.statements.router import router as statements_router
 from app.transactions.router import router as transactions_router
 from app.transactions.router import transfers_router
 
@@ -37,4 +38,5 @@ api.include_router(transfers_router)
 api.include_router(invoices_router)
 api.include_router(loans_router)
 api.include_router(investments_router)
+api.include_router(statements_router)
 app.include_router(api)
