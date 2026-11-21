@@ -1,11 +1,20 @@
 import { ActionIcon, Badge, Card, Group, Menu, Progress, Stack, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
-import { IconArchive, IconDots, IconList, IconPencil, IconTrash } from '@tabler/icons-react';
+import {
+  IconArchive,
+  IconCalendarStats,
+  IconDots,
+  IconList,
+  IconPencil,
+  IconTrash,
+} from '@tabler/icons-react';
+import { useState } from 'react';
 import { Link } from 'react-router';
 import type { Schemas } from '../../api/client';
 import { formatDate, nextDayOfMonth } from '../../lib/dates';
 import { ACCOUNT_TYPE_LABELS } from '../../lib/labels';
 import { addMoney, formatMoney, toCents } from '../../lib/money';
+import { AccountMonthsModal } from './AccountMonthsModal';
 import { useArchiveAccount, useDeleteAccount } from './api';
 
 interface Props {
@@ -17,6 +26,7 @@ export function AccountCard({ account, onEdit }: Props) {
   const archive = useArchiveAccount();
   const remove = useDeleteAccount();
   const isCard = account.type === 'credit_card';
+  const [monthsOpen, setMonthsOpen] = useState(false);
 
   function confirmDelete() {
     modals.openConfirmModal({
@@ -58,6 +68,12 @@ export function AccountCard({ account, onEdit }: Props) {
             >
               Ver movimientos
             </Menu.Item>
+            <Menu.Item
+              leftSection={<IconCalendarStats size={16} />}
+              onClick={() => setMonthsOpen(true)}
+            >
+              Resumen por mes
+            </Menu.Item>
             <Menu.Item leftSection={<IconPencil size={16} />} onClick={onEdit}>
               Editar
             </Menu.Item>
@@ -75,6 +91,12 @@ export function AccountCard({ account, onEdit }: Props) {
       </Group>
 
       {isCard ? <CardDetails account={account} /> : <Balance account={account} />}
+
+      <AccountMonthsModal
+        account={account}
+        opened={monthsOpen}
+        onClose={() => setMonthsOpen(false)}
+      />
     </Card>
   );
 }

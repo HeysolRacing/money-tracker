@@ -285,6 +285,33 @@ const investmentDashboard = {
   ],
 };
 
+const accountMonths = [
+  {
+    year: 2026,
+    month: 10,
+    period_start: '2026-09-20',
+    period_end: '2026-10-19',
+    movement_count: 44,
+    charges_total: '65911.49',
+    credits_total: '56832.75',
+    statement_import_id: 5,
+    loaded_at: '2026-11-07T22:00:00Z',
+    missing: false,
+  },
+  {
+    year: 2026,
+    month: 9,
+    period_start: '2026-08-20',
+    period_end: '2026-09-19',
+    movement_count: 0,
+    charges_total: '0.00',
+    credits_total: '0.00',
+    statement_import_id: null,
+    loaded_at: null,
+    missing: true,
+  },
+];
+
 const statementImports = [
   {
     id: 1,
@@ -340,6 +367,7 @@ beforeEach(() => {
       const url = typeof input === 'string' ? input : input.url;
       if (url.includes('/api/statements/preview')) return respond(statementPreview);
       if (url.includes('/api/statements/imports')) return respond(statementImports);
+      if (url.includes('/months')) return respond(accountMonths);
       if (url.includes('/api/accounts')) return respond(accounts);
       if (url.includes('/api/categories')) return respond(categories);
       if (url.includes('/api/transactions')) return respond(transactions);
@@ -389,6 +417,17 @@ describe('pages render with data', () => {
     renderPage(<AccountsPage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Nueva cuenta' }));
     expect(await screen.findByLabelText('Nombre')).toBeInTheDocument();
+  });
+
+  it('AccountsPage shows the monthly summary of an account', async () => {
+    renderPage(<AccountsPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Acciones' }))[1]!);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Resumen por mes' }));
+    expect(await screen.findByText('Liverpool — resumen por mes')).toBeInTheDocument();
+    expect(await screen.findByText('Octubre 2026')).toBeInTheDocument();
+    expect(screen.getByText('$65,911.49')).toBeInTheDocument();
+    expect(screen.getByText('— sin cargar —')).toBeInTheDocument();
+    expect(screen.getByText('Falta PDF')).toBeInTheDocument();
   });
 
   it('CategoriesPage shows the category tree', async () => {

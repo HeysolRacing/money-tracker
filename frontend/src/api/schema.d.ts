@@ -109,6 +109,26 @@ export interface paths {
         patch: operations["accounts-update_account"];
         trace?: never;
     };
+    "/api/accounts/{account_id}/months": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Account Months
+         * @description Movements per statement period, newest first; flags statements not loaded yet.
+         */
+        get: operations["accounts-list_account_months"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/categories": {
         parameters: {
             query?: never;
@@ -515,6 +535,38 @@ export interface components {
             statement_format?: components["schemas"]["StatementFormat"] | null;
             /** Card Endings */
             card_endings?: string[] | null;
+        };
+        /**
+         * AccountMonth
+         * @description One statement period of an account (see app/accounts/monthly.py).
+         */
+        AccountMonth: {
+            /** Year */
+            year: number;
+            /** Month */
+            month: number;
+            /**
+             * Period Start
+             * Format: date
+             */
+            period_start: string;
+            /**
+             * Period End
+             * Format: date
+             */
+            period_end: string;
+            /** Movement Count */
+            movement_count: number;
+            /** Charges Total */
+            charges_total: string;
+            /** Credits Total */
+            credits_total: string;
+            /** Statement Import Id */
+            statement_import_id: number | null;
+            /** Loaded At */
+            loaded_at: string | null;
+            /** Missing */
+            missing: boolean;
         };
         /** AccountOut */
         AccountOut: {
@@ -1655,6 +1707,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "accounts-list_account_months": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account_id: number;
+            };
+            cookie?: {
+                mt_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountMonth"][];
                 };
             };
             /** @description Validation Error */

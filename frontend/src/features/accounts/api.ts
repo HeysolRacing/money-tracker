@@ -51,3 +51,17 @@ export function useDeleteAccount() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: accountKeys.all }),
   });
 }
+
+/** Movements per statement period of an account, newest first. */
+export function useAccountMonths(accountId: number) {
+  return useQuery({
+    // Under accountKeys.all, so it refreshes whenever movements change.
+    queryKey: [...accountKeys.all, 'months', accountId] as const,
+    queryFn: () =>
+      unwrap(
+        api.GET('/api/accounts/{account_id}/months', {
+          params: { path: { account_id: accountId } },
+        }),
+      ),
+  });
+}
