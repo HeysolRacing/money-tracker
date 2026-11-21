@@ -7,6 +7,7 @@ from app.db import Base
 from app.investments.models import Investment, InvestmentBalance, InvestmentTerm
 from app.invoices.models import Invoice
 from app.loans.models import Borrower, LoanEntry
+from app.statements.models import StatementImport
 from app.transactions.models import Transaction
 
 __all__ = [
@@ -19,6 +20,7 @@ __all__ = [
     "InvestmentTerm",
     "Invoice",
     "LoanEntry",
+    "StatementImport",
     "Transaction",
     "User",
     "UserSession",

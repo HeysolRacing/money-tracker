@@ -18,6 +18,7 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 import {
   IconArrowsExchange,
+  IconFileUpload,
   IconPencil,
   IconPlus,
   IconSearch,
@@ -31,6 +32,7 @@ import { useAccounts } from '../features/accounts/api';
 import { AccountSelect } from '../features/accounts/AccountSelect';
 import { categoryLabel, useCategories } from '../features/categories/api';
 import { CategorySelect } from '../features/categories/CategorySelect';
+import { StatementImportModal } from '../features/statements/StatementImportModal';
 import {
   useDeleteTransaction,
   useTransactions,
@@ -103,6 +105,9 @@ export function TransactionsPage() {
   const [editing, setEditing] = useState<Transaction | undefined>();
   const [formOpen, setFormOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const { data: accounts = [] } = useAccounts();
+  const canImport = accounts.some((a) => a.statement_format);
 
   useEffect(() => {
     if (debouncedSearch !== f.q) f.set({ q: debouncedSearch });
@@ -135,6 +140,15 @@ export function TransactionsPage() {
       <Group justify="space-between">
         <Title order={2}>Movimientos</Title>
         <Group>
+          {canImport && (
+            <Button
+              variant="light"
+              leftSection={<IconFileUpload size={16} />}
+              onClick={() => setImportOpen(true)}
+            >
+              Carga masiva
+            </Button>
+          )}
           <Button
             variant="light"
             leftSection={<IconArrowsExchange size={16} />}
@@ -209,6 +223,11 @@ export function TransactionsPage() {
         defaultAccountId={f.accountId}
       />
       <TransferFormModal opened={transferOpen} onClose={() => setTransferOpen(false)} />
+      <StatementImportModal
+        opened={importOpen}
+        onClose={() => setImportOpen(false)}
+        defaultAccountId={f.accountId}
+      />
     </Stack>
   );
 }

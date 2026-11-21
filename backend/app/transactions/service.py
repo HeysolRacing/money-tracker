@@ -192,6 +192,15 @@ async def delete_transaction(db: AsyncSession, user_id: int, tx_id: int) -> None
 
 
 async def create_transfer(db: AsyncSession, user_id: int, data: TransferCreate) -> TransferOut:
+    out = await add_transfer(db, user_id, data)
+    await db.commit()
+    return out
+
+
+async def add_transfer(
+    db: AsyncSession, user_id: int, data: TransferCreate, statement_import_id: int | None = None
+) -> TransferOut:
+    """Adds both rows of a transfer without committing, so callers can batch several."""
     if data.from_account_id == data.to_account_id:
         raise AppError.bad_request("Las cuentas de origen y destino deben ser distintas")
     source = await _active_account(db, user_id, data.from_account_id)
@@ -206,6 +215,7 @@ async def create_transfer(db: AsyncSession, user_id: int, data: TransferCreate) 
         "date": data.date,
         "description": data.description,
         "notes": data.notes,
+        "statement_import_id": statement_import_id,
     }
     outflow = Transaction(
         **common, account_id=source.id, kind=TransactionKind.TRANSFER_OUT, amount=data.amount
@@ -220,5 +230,5 @@ async def create_transfer(db: AsyncSession, user_id: int, data: TransferCreate) 
     await db.flush()
     outflow.transfer_peer_id = inflow.id
     inflow.transfer_peer_id = outflow.id
-    await db.commit()
+    await db.flush()
     return TransferOut(outflow=_to_out(outflow, target.id), inflow=_to_out(inflow, source.id))

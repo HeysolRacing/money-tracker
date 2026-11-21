@@ -22,3 +22,16 @@ export const CURRENCIES = ['MXN', 'USD'] as const;
 export function toSelectData<T extends string>(labels: Record<T, string>) {
   return (Object.entries(labels) as [T, string][]).map(([value, label]) => ({ value, label }));
 }
+
+export const STATEMENT_FORMAT_LABELS: Record<Schemas['StatementFormat'], string> = {
+  bbva_oro: 'BBVA Oro',
+  bbva_azul: 'BBVA Azul',
+};
+
+export const STATEMENT_ROW_KIND_LABELS: Record<Schemas['RowKind'], string> = {
+  expense: 'Gasto',
+  income: 'Ingreso',
+  payment: 'Pago a tarjeta',
+  transfer_out: 'Transferencia (salida)',
+  transfer_in: 'Transferencia (entrada)',
+};

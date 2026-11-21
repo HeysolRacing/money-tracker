@@ -29,6 +29,8 @@ const accounts = [
     credit_limit: null,
     statement_day: null,
     payment_due_day: null,
+    statement_format: null,
+    card_endings: null,
     balance: '4000.00',
   },
   {
@@ -42,6 +44,8 @@ const accounts = [
     credit_limit: '20000.00',
     statement_day: 10,
     payment_due_day: 30,
+    statement_format: 'bbva_oro',
+    card_endings: ['0739'],
     balance: '-1234.56',
   },
 ];
@@ -281,6 +285,47 @@ const investmentDashboard = {
   ],
 };
 
+const statementImports = [
+  {
+    id: 1,
+    account_id: 2,
+    period_start: '2026-08-13',
+    period_end: '2026-09-12',
+    row_count: 47,
+    created_at: '2026-09-20T10:00:00Z',
+  },
+];
+
+const statementPreview = {
+  period_start: '2026-09-13',
+  period_end: '2026-10-12',
+  card_ending: '0739',
+  file_sha256: 'a'.repeat(64),
+  warnings: [
+    'No cuadra: TOTAL CARGOS dice 74,274.94, los movimientos suman 74,658.62 (diferencia 383.68)',
+  ],
+  rows: [
+    {
+      date: '2026-09-13',
+      description: 'PAGO CUENTA DE TERCERO · Transf a Amiga',
+      amount: '200.00',
+      kind: 'expense',
+      card_ending: null,
+      notes: 'BNET 1534618966 Transf a Amiga',
+      skip_reason: null,
+    },
+    {
+      date: '2026-09-19',
+      description: 'PAGO TARJETA DE CREDITO',
+      amount: '28000.00',
+      kind: 'transfer_out',
+      card_ending: null,
+      notes: 'CUENTA: BMOV',
+      skip_reason: 'Pago a tarjeta: se registra al cargar el estado de cuenta de la tarjeta',
+    },
+  ],
+};
+
 function respond(body: unknown) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -293,6 +338,8 @@ beforeEach(() => {
     'fetch',
     vi.fn(async (input: Request | string) => {
       const url = typeof input === 'string' ? input : input.url;
+      if (url.includes('/api/statements/preview')) return respond(statementPreview);
+      if (url.includes('/api/statements/imports')) return respond(statementImports);
       if (url.includes('/api/accounts')) return respond(accounts);
       if (url.includes('/api/categories')) return respond(categories);
       if (url.includes('/api/transactions')) return respond(transactions);
@@ -363,6 +410,41 @@ describe('pages render with data', () => {
     expect(await screen.findByLabelText('Monto')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Transferencia' }));
     expect(await screen.findByText('Transferencia / pago de tarjeta')).toBeInTheDocument();
+  });
+
+  it('TransactionsPage opens the bulk import with the card preselected', async () => {
+    renderPage(<TransactionsPage />, '/movimientos?account_id=2');
+    fireEvent.click(await screen.findByRole('button', { name: 'Carga masiva' }));
+    expect(await screen.findByText('Carga masiva de estado de cuenta')).toBeInTheDocument();
+    expect(screen.getByLabelText('Estado de cuenta (PDF)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Subir (0)' })).toBeDisabled();
+  });
+
+  it('bulk import previews the PDF with card payments unselected', async () => {
+    renderPage(<TransactionsPage />, '/movimientos?account_id=2');
+    fireEvent.click(await screen.findByRole('button', { name: 'Carga masiva' }));
+    await screen.findByText('Carga masiva de estado de cuenta');
+    expect(await screen.findByText('47 movimientos')).toBeInTheDocument();
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const pdf = new File(['%PDF'], 'estado.pdf', { type: 'application/pdf' });
+    fireEvent.change(input, { target: { files: [pdf] } });
+
+    expect(await screen.findByText('Transacciones detectadas: 2')).toBeInTheDocument();
+    expect(screen.getByText(/diferencia 383.68/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('checkbox', { name: 'Incluir PAGO CUENTA DE TERCERO · Transf a Amiga' }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole('checkbox', { name: 'Incluir PAGO TARJETA DE CREDITO' }),
+    ).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Subir (1)' })).toBeEnabled();
+
+    // Including the card payment needs the destination account of the transfer.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Incluir PAGO TARJETA DE CREDITO' }));
+    expect(screen.getByRole('button', { name: 'Subir (2)' })).toBeDisabled();
+    expect(
+      screen.getByText('Elige la cuenta de cada transferencia seleccionada.'),
+    ).toBeInTheDocument();
   });
 
   it('InvoicesPage shows rows with DD-MMM dates and the summary header', async () => {
