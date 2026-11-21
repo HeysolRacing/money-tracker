@@ -1,3 +1,4 @@
+import datetime as dt
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -56,3 +57,22 @@ class AccountOut(BaseModel):
     card_endings: list[str] | None
     # opening_balance + inflows - outflows. Credit cards: negative = amount owed.
     balance: Money
+
+
+class AccountMonth(BaseModel):
+    """One statement period of an account (see app/accounts/monthly.py)."""
+
+    # Month the period ends in, e.g. 2026-10 for 20-sep..19-oct.
+    year: int
+    month: int
+    period_start: dt.date
+    period_end: dt.date
+    movement_count: int
+    # Outflows (expenses, transfers out) and inflows (income, transfers in, card payments).
+    charges_total: Money
+    credits_total: Money
+    # Set when the period was loaded from a statement PDF.
+    statement_import_id: int | None
+    loaded_at: dt.datetime | None
+    # A bulk-import account with no statement loaded for this period.
+    missing: bool

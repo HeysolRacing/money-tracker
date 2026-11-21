@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status
 
-from app.accounts import service
-from app.accounts.schemas import AccountCreate, AccountOut, AccountUpdate
+from app.accounts import monthly, service
+from app.accounts.schemas import AccountCreate, AccountMonth, AccountOut, AccountUpdate
 from app.deps import CurrentUser, DbSession
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -34,3 +34,11 @@ async def update_account(
 @router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_account(account_id: int, db: DbSession, user: CurrentUser) -> None:
     await service.delete_account(db, user.id, account_id)
+
+
+@router.get("/{account_id}/months", response_model=list[AccountMonth])
+async def list_account_months(
+    account_id: int, db: DbSession, user: CurrentUser
+) -> list[AccountMonth]:
+    """Movements per statement period, newest first; flags statements not loaded yet."""
+    return await monthly.monthly_summary(db, user.id, account_id)
