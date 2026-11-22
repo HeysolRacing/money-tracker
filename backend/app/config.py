@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +12,8 @@ class Settings(BaseSettings):
     session_ttl_days: int = 30
     # Set to true when the app is served over HTTPS.
     cookie_secure: bool = False
+    # Password of the Banco Azteca statement PDFs (see app/statements/service.py).
+    azteca_pdf_password: SecretStr | None = None
 
 
 @lru_cache

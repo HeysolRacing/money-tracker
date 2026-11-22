@@ -26,6 +26,7 @@ export function toSelectData<T extends string>(labels: Record<T, string>) {
 export const STATEMENT_FORMAT_LABELS: Record<Schemas['StatementFormat'], string> = {
   bbva_oro: 'BBVA Oro',
   bbva_azul: 'BBVA Azul',
+  azteca: 'Banco Azteca',
 };
 
 export const STATEMENT_ROW_KIND_LABELS: Record<Schemas['RowKind'], string> = {

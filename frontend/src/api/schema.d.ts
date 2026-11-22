@@ -1049,7 +1049,7 @@ export interface components {
          * @description Layout of the PDF statements an account can bulk-import (see app/statements).
          * @enum {string}
          */
-        StatementFormat: "bbva_oro" | "bbva_azul";
+        StatementFormat: "bbva_oro" | "bbva_azul" | "azteca";
         /** StatementImportCreate */
         StatementImportCreate: {
             /** Account Id */

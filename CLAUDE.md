@@ -51,6 +51,8 @@ Everything runs in Docker. On Windows Git Bash, prefix `docker compose exec/run`
   - Categories have at most two levels. A category's `kind` must match the transaction kind, and filtering by a parent category includes its children.
   - Every owned row has `user_id`; fetch by id with `get_owned()` (`app/common/crud.py`), which returns 404 for other users' rows.
   - New users get the default Spanish categories (`categories/defaults.py`). For existing users: `python -m app.cli seed-categories --email ...`.
+- **Statement import** (`statements/`): one parser per `StatementFormat` in `parsers.py`, text-only so tests feed page strings.
+  - Password-protected PDFs use a setting per format (`PDF_PASSWORD_SETTINGS` in `service.py`, e.g. `AZTECA_PDF_PASSWORD` in `.env`, passed through `compose.yaml`). Never store it in the DB. After changing it, run `docker compose up -d api`; a restart doesn't reload `.env`.
 - **Invoices** (`invoices/`): a simple user-defined record that replaces the richer model in the original plan.
   - **Total is never stored**: it is a Pydantic `computed_field` (subtotal + iva).
   - The UI shows dates as `DD-MMM` in English ("22-Aug"), and I.V.A defaults to 16% of the subtotal until edited by hand.

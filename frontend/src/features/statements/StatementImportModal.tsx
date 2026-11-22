@@ -76,7 +76,7 @@ interface Props {
 
 export function StatementImportModal({ opened, onClose, defaultAccountId }: Props) {
   return (
-    <Modal opened={opened} onClose={onClose} title="Carga masiva de estado de cuenta" size="xl">
+    <Modal opened={opened} onClose={onClose} title="Carga masiva de estado de cuenta" size="90%">
       <StatementImport defaultAccountId={defaultAccountId} onDone={onClose} />
     </Modal>
   );
@@ -240,7 +240,15 @@ function StatementImport({
             </Alert>
           )}
 
-          <Table.ScrollContainer minWidth={900} mah={440}>
+          {/* Native scroll: the browser's scrollbar is always visible and the header row
+              stays on top; the height leaves room for the rest of the dialog. */}
+          <Table.ScrollContainer
+            minWidth={900}
+            type="native"
+            // Not `maxHeight`: with type="native" Mantine sets it on an inner box that
+            // doesn't scroll.
+            style={{ maxHeight: 'max(320px, calc(100dvh - 420px))', overflowY: 'auto' }}
+          >
             <Table stickyHeader verticalSpacing={4} highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
