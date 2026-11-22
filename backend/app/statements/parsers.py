@@ -515,10 +515,11 @@ def parse_bbva_azul(pages: list[str]) -> ParsedStatement:
 #   TRANSFERENCIA SPEI (-) $120.00 APP BANCO AZTECA"). The concept and the channel may wrap
 #   to a second line, so pages are extracted with `channel=True`. The table may continue on
 #   the next page, which repeats its column header.
-# Everything else (deposits, interest, glossary, CFDI) is skipped. Every withdrawal is an
-# expense, including "TRASPASO ENTRE CUENTAS": it pays another Banco Azteca client, not an
-# own account (it can still be marked as a transfer in the preview). The account number
-# ("No. Cuenta:") may be on any page.
+# Everything else (deposits, interest, glossary, CFDI) is skipped. Withdrawals are expenses,
+# including "TRASPASO ENTRE CUENTAS": it pays another Banco Azteca client, not an own
+# account. "COMPRA EN LIVERPOOL POR INTERNET" pays a Liverpool card, so it is a transfer out
+# and the user picks which card in the preview; it starts selected, since Liverpool
+# statements aren't imported. The account number ("No. Cuenta:") may be on any page.
 
 LONG_MONTHS = {
     "enero": 1,
@@ -547,6 +548,7 @@ AZTECA_ROW = re.compile(
     rf"(?:\s+{re.escape(CHANNEL_TAG)}\s*(.*))?$"
 )
 AZTECA_TOTAL = re.compile(rf"^Total\s+({AMOUNT})$")
+AZTECA_CARD_PAYMENT = re.compile(r"^COMPRA EN LIVERPOOL\b")
 
 
 def _long_date(text: str) -> date:
@@ -669,12 +671,13 @@ def parse_azteca(pages: list[str]) -> ParsedStatement:
     for row in _read_azteca_withdrawals(pages):
         description = " ".join(row.concept)
         channel = " ".join(row.channel)
+        payment = AZTECA_CARD_PAYMENT.match(description) is not None
         statement.rows.append(
             ParsedRow(
                 date=row.date,
                 description=description[:255],
                 amount=row.amount,
-                kind=RowKind.EXPENSE,
+                kind=RowKind.TRANSFER_OUT if payment else RowKind.EXPENSE,
                 card_ending=None,
                 notes=f"Canal: {channel}" if channel else None,
             )

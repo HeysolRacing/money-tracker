@@ -626,6 +626,56 @@ def test_parse_azteca() -> None:
     assert statement.warnings == []
 
 
+# A Liverpool card payment made from the account (a "COMPRA" by the bank's wording).
+AZTECA_LIVERPOOL = """02/10/2026 COMPRA EN LIVERPOOL POR (-) $911.00 [CANAL] COMPRA CON
+INTERNET CIUDAD DE MEX [CANAL] TARJETA
+RFC:DLI 931201MI9
+"""
+
+
+def _azteca_with_liverpool() -> list[str]:
+    page_1 = AZTECA_PAGE_1.replace("Retiros* ( - ) $3,150.00", "Retiros* ( - ) $4,061.00")
+    page_2 = AZTECA_PAGE_2.replace("Total $3,150.00", AZTECA_LIVERPOOL + "Total $4,061.00")
+    return [page_1, page_2]
+
+
+def test_parse_azteca_liverpool_is_a_card_payment() -> None:
+    statement = parsers.parse_azteca(_azteca_with_liverpool())
+    payment = statement.rows[-1]
+    assert payment.description == "COMPRA EN LIVERPOOL POR INTERNET CIUDAD DE MEX RFC:DLI 931201MI9"
+    assert payment.amount == Decimal("911.00")
+    # A transfer to the Liverpool card the user picks; selected, since there is no Liverpool
+    # statement to load it from.
+    assert payment.kind == RowKind.TRANSFER_OUT and payment.skip_reason is None
+    assert payment.notes == "Canal: COMPRA CON TARJETA"
+    assert statement.warnings == []
+
+
+async def test_import_azteca_liverpool_payment(
+    auth_client: AsyncClient, azteca: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(parsers, "extract_pages", lambda pdf, **_: _azteca_with_liverpool())
+    liverpool = await _post(
+        auth_client, "/api/accounts", {"name": "Liverpool Morada", "type": "credit_card"}
+    )
+    preview = (await _preview(auth_client, azteca["id"])).json()
+    rows = preview["rows"]
+    rows[-1]["counterpart_account_id"] = liverpool["id"]
+    res = await auth_client.post(
+        "/api/statements/import",
+        json={**_period(preview), "account_id": azteca["id"], "rows": rows},
+    )
+    assert res.status_code == 201, res.text
+
+    balances = {a["id"]: a["balance"] for a in (await auth_client.get("/api/accounts")).json()}
+    assert balances[azteca["id"]] == "-4061.00"
+    assert balances[liverpool["id"]] == "911.00"  # the payment lowers the card's debt
+    spending = await auth_client.get(
+        "/api/transactions", params={"account_id": azteca["id"], "kind": "expense"}
+    )
+    assert spending.json()["total"] == 4  # the 5th row, the payment, is not spending
+
+
 def test_parse_azteca_ignores_page_numbers_and_cut_date() -> None:
     # Only the summary and the withdrawals table matter.
     page = AZTECA_PAGE_1.replace("Hoja 1 de 3", "").replace("Fecha de corte: 31", "Fecha: 30")
