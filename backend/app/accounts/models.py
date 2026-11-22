@@ -22,6 +22,7 @@ class StatementFormat(StrEnum):
 
     BBVA_ORO = "bbva_oro"
     BBVA_AZUL = "bbva_azul"
+    AZTECA = "azteca"
 
 
 class Account(TimestampMixin, Base):

@@ -3,8 +3,10 @@
 Each account picks a layout (`Account.statement_format`); `PARSERS` maps it to a function
 that takes the text of every page and returns a `ParsedStatement`. Parsers work on text
 only, so they can be tested without a PDF. Layouts that tell charges from credits only by
-their column (`COLUMN_FORMATS`) get their amounts tagged by column first; see
-`extract_pages`.
+their column (`COLUMN_FORMATS`) get their amounts tagged by column first, and layouts with
+a "Lugar o Canal de Operación" column (`CHANNEL_FORMATS`) get that column tagged; see
+`extract_pages`. Password-protected PDFs are opened with the password configured for their
+format (see `app.statements.service`).
 
 Rules shared by every BBVA layout:
 - The period and the statement date are read only from the statement's first page
@@ -28,6 +30,7 @@ from enum import StrEnum
 from typing import Any
 
 import pdfplumber
+from pdfminer.pdfdocument import PDFPasswordIncorrect
 
 from app.accounts.models import StatementFormat
 
@@ -55,6 +58,10 @@ DIGITAL_CARD = re.compile(r"\s*;\s*Tarjeta Digital\s*\*+(\d{4})", re.IGNORECASE)
 
 class StatementError(ValueError):
     """The PDF doesn't have the expected layout or doesn't add up."""
+
+
+class PasswordError(StatementError):
+    """The PDF is password-protected and no password, or a wrong one, was given."""
 
 
 class RowKind(StrEnum):
@@ -95,31 +102,82 @@ COLUMN_TAGS = {"CARGOS": "CARGO", "ABONOS": "ABONO", "OPERACION": "SALDO", "LIQU
 COLUMN_TOLERANCE = 25
 
 
-def extract_pages(pdf: bytes, *, columns: bool = False) -> list[str]:
+def extract_pages(
+    pdf: bytes, *, columns: bool = False, channel: bool = False, password: str | None = None
+) -> list[str]:
     """Text of every page. With `columns`, amounts under a "CARGOS ABONOS OPERACION
-    LIQUIDACION" header are tagged by column: "200.00" -> "[CARGO]200.00"."""
+    LIQUIDACION" header are tagged by column: "200.00" -> "[CARGO]200.00". With `channel`,
+    the text under a "Lugar o Canal de Operación" header is split off with "[CANAL]"."""
     try:
-        with pdfplumber.open(io.BytesIO(pdf)) as doc:
-            if not columns:
-                return [page.extract_text() or "" for page in doc.pages]
-            return _tagged_pages(doc.pages)
+        with pdfplumber.open(io.BytesIO(pdf), password=password or "") as doc:
+            if columns:
+                return _tagged_pages(doc.pages)
+            if channel:
+                return _channel_pages(doc.pages)
+            return [page.extract_text() or "" for page in doc.pages]
     except Exception as exc:  # pdfminer raises many unrelated types on a bad file
+        if _is_password_error(exc):
+            if password:
+                raise PasswordError("La contraseña del PDF no es correcta") from exc
+            raise PasswordError("El PDF está protegido con contraseña") from exc
         raise StatementError("No se pudo leer el PDF") from exc
+
+
+def _is_password_error(exc: BaseException) -> bool:
+    # pdfplumber wraps pdfminer's error: PdfminerException(PDFPasswordIncorrect()).
+    return isinstance(exc, PDFPasswordIncorrect) or any(
+        isinstance(arg, PDFPasswordIncorrect) for arg in exc.args
+    )
+
+
+def _lines(page: Any) -> list[list[dict[str, Any]]]:
+    """The page's words grouped into lines, each sorted left to right."""
+    lines: list[list[dict[str, Any]]] = []
+    for word in sorted(page.extract_words(), key=lambda w: (round(w["top"]), w["x0"])):
+        if lines and abs(word["top"] - lines[-1][0]["top"]) <= 3:
+            lines[-1].append(word)
+        else:
+            lines.append([word])
+    for line in lines:
+        line.sort(key=lambda w: w["x0"])
+    return lines
+
+
+CHANNEL_TAG = "[CANAL]"
+# Max distance (points) a channel word may start left of the "Lugar" header word. The
+# column is centered ("APP BANCO AZTECA" starts 11 points before "Lugar"), while the amounts
+# to its left end some 70 points before it.
+CHANNEL_TOLERANCE = 40
+
+
+def _channel_pages(pages: list[Any]) -> list[str]:
+    """Like `extract_text`, but the words in the "Lugar o Canal de Operación" column (at or
+    right of its header's first word) come after a "[CANAL]" tag, so the column's text isn't
+    mistaken for the concept's when either one wraps to a second line."""
+    start: float | None = None  # left edge of the "Lugar" header word
+    result = []
+    for page in pages:
+        text = []
+        for line in _lines(page):
+            words = [w["text"] for w in line]
+            if words[:4] == ["Lugar", "o", "Canal", "de"]:
+                start = line[0]["x0"]
+            if start is None:
+                text.append(" ".join(words))
+                continue
+            left = [w["text"] for w in line if w["x0"] < start - CHANNEL_TOLERANCE]
+            right = [w["text"] for w in line if w["x0"] >= start - CHANNEL_TOLERANCE]
+            text.append(" ".join(left + ([CHANNEL_TAG, *right] if right else [])))
+        result.append("\n".join(text))
+    return result
 
 
 def _tagged_pages(pages: list[Any]) -> list[str]:
     header: dict[str, float] | None = None  # column -> right edge of its header word
     result = []
     for page in pages:
-        lines: list[list[dict[str, Any]]] = []
-        for word in sorted(page.extract_words(), key=lambda w: (round(w["top"]), w["x0"])):
-            if lines and abs(word["top"] - lines[-1][0]["top"]) <= 3:
-                lines[-1].append(word)
-            else:
-                lines.append([word])
         text = []
-        for line in lines:
-            line.sort(key=lambda w: w["x0"])
+        for line in _lines(page):
             if header is None and set(COLUMN_TAGS) <= {w["text"] for w in line}:
                 header = {w["text"]: w["x1"] for w in line if w["text"] in COLUMN_TAGS}
             text.append(" ".join(_tag(w, header) for w in line))
@@ -448,9 +506,192 @@ def parse_bbva_azul(pages: list[str]) -> ParsedStatement:
     return statement
 
 
+# --- Banco Azteca (Guardadito, debit) ----------------------------------------------------
+# Only two parts of the statement are read:
+# - The "Resumen Mensual de Movimientos de la Cuenta en Moneda Nacional" block: the period
+#   ("Saldo Inicial al 01 de enero 2026" … "Saldo Final al 31 de enero 2026") and the
+#   withdrawals total ("Retiros* ( - ) $29,500.26").
+# - The "Total de Retiros del mes" table: one line per withdrawal ("31/01/2026 ENVIO
+#   TRANSFERENCIA SPEI (-) $120.00 APP BANCO AZTECA"). The concept and the channel may wrap
+#   to a second line, so pages are extracted with `channel=True`. The table may continue on
+#   the next page, which repeats its column header.
+# Everything else (deposits, interest, glossary, CFDI) is skipped. Withdrawals are expenses,
+# including "TRASPASO ENTRE CUENTAS": it pays another Banco Azteca client, not an own
+# account. "COMPRA EN LIVERPOOL POR INTERNET" pays a Liverpool card, so it is a transfer out
+# and the user picks which card in the preview; it starts selected, since Liverpool
+# statements aren't imported. The account number ("No. Cuenta:") may be on any page.
+
+LONG_MONTHS = {
+    "enero": 1,
+    "febrero": 2,
+    "marzo": 3,
+    "abril": 4,
+    "mayo": 5,
+    "junio": 6,
+    "julio": 7,
+    "agosto": 8,
+    "septiembre": 9,
+    "setiembre": 9,
+    "octubre": 10,
+    "noviembre": 11,
+    "diciembre": 12,
+}
+# "31 de enero 2026"
+LONG_DATE = r"\d{1,2}\s+de\s+[a-zA-Z]+\s+(?:de\s+)?\d{4}"
+AZTECA_SUMMARY = "Resumen Mensual de Movimientos de la Cuenta en Moneda Nacional"
+# The summary block ends where the first movements table starts.
+AZTECA_SUMMARY_END = re.compile(r"^Total (?:Depósitos|de Retiros) del mes")
+AZTECA_SECTION = "Total de Retiros del mes"
+# "30/01/2026 COMPRA EN TELCEL RECARGAS FONY(-) $25.00 [CANAL] COMPRA CON"
+AZTECA_ROW = re.compile(
+    rf"^(\d{{2}}/\d{{2}}/\d{{4}})\s+(.+?)\s*\(([+-])\)\s*({AMOUNT})"
+    rf"(?:\s+{re.escape(CHANNEL_TAG)}\s*(.*))?$"
+)
+AZTECA_TOTAL = re.compile(rf"^Total\s+({AMOUNT})$")
+AZTECA_CARD_PAYMENT = re.compile(r"^COMPRA EN LIVERPOOL\b")
+
+
+def _long_date(text: str) -> date:
+    """ "31 de enero 2026" -> date(2026, 1, 31)."""
+    m = re.fullmatch(r"(\d{1,2})\s+de\s+([a-zA-Z]+)\s+(?:de\s+)?(\d{4})", text.strip())
+    try:
+        if m is None:
+            raise ValueError(text)
+        return date(int(m[3]), LONG_MONTHS[m[2].lower()], int(m[1]))
+    except (KeyError, ValueError) as exc:
+        raise StatementError(f"Fecha no válida: {text}") from exc
+
+
+def _plain_lines(pages: list[str]) -> list[str]:
+    """Every line of every page, without the channel tag."""
+    return [
+        " ".join(line.replace(CHANNEL_TAG, " ").split())
+        for page in pages
+        for line in page.splitlines()
+    ]
+
+
+def _azteca_summary(pages: list[str]) -> str:
+    lines = _plain_lines(pages)
+    if not any("Banco Azteca" in line for line in lines):
+        raise StatementError("El PDF no es un estado de cuenta de Banco Azteca")
+    start = next((i for i, line in enumerate(lines) if AZTECA_SUMMARY in line), None)
+    if start is None:
+        raise StatementError(f"No se encontró el «{AZTECA_SUMMARY}»")
+    block = []
+    for line in lines[start:]:
+        if AZTECA_SUMMARY_END.match(line):
+            break
+        block.append(line)
+    return "\n".join(block)
+
+
+@dataclass
+class _AztecaSummary(_Header):
+    withdrawals: Decimal
+
+
+def _parse_azteca_summary(pages: list[str]) -> _AztecaSummary:
+    summary = _azteca_summary(pages)
+    opening = re.search(rf"Saldo Inicial al\s+({LONG_DATE})", summary)
+    closing = re.search(rf"Saldo Final al\s+({LONG_DATE})", summary)
+    if opening is None or closing is None:
+        raise StatementError("No se encontró el periodo en el resumen mensual")
+    start, end = _long_date(opening[1]), _long_date(closing[1])
+    if start > end:
+        raise StatementError("El periodo del estado de cuenta no es válido")
+    withdrawals = re.search(rf"^Retiros\*?\s*\(\s*-\s*\)\s*({AMOUNT})", summary, re.MULTILINE)
+    if withdrawals is None:
+        raise StatementError("No se encontró el total de retiros en el resumen mensual")
+    account = re.search(r"No\. Cuenta:\s*\d*(\d{4})\b", "\n".join(_plain_lines(pages)))
+    if account is None:
+        raise StatementError("No se encontró el número de cuenta")
+    return _AztecaSummary(
+        period_start=start,
+        period_end=end,
+        card_ending=account[1],
+        withdrawals=parse_amount(withdrawals[1]),
+    )
+
+
+@dataclass
+class _AztecaRow:
+    date: date
+    amount: Decimal
+    concept: list[str]
+    channel: list[str]
+
+
+def _read_azteca_withdrawals(pages: list[str]) -> list[_AztecaRow]:
+    rows: list[_AztecaRow] = []
+    found = in_section = False
+    # From the table's title (or a page break) to its column header "Fecha Concepto …".
+    in_header = False
+    for page in pages:
+        for raw in page.splitlines():
+            line = raw.strip()
+            left, _, right = (part.strip() for part in line.partition(CHANNEL_TAG))
+            if not in_section:
+                if left == AZTECA_SECTION and not found:
+                    found = in_section = in_header = True
+            elif in_header:
+                in_header = not left.startswith("Fecha Concepto")
+            elif not left and right == "Operación":  # 2nd line of the column header
+                continue
+            elif AZTECA_TOTAL.match(left):
+                in_section = False
+            elif left.startswith("Continúa en la siguiente hoja"):
+                in_header = True  # skip the footer and the next page's header
+            elif m := AZTECA_ROW.match(line):
+                if m[3] != "-":
+                    raise StatementError(f"Retiro con signo inesperado: {left}")
+                rows.append(
+                    _AztecaRow(
+                        date=_slash_date(m[1]),
+                        amount=parse_amount(m[4]),
+                        concept=[m[2]],
+                        channel=[m[5]] if m[5] else [],
+                    )
+                )
+            elif rows and line:
+                rows[-1].concept += [left] if left else []
+                rows[-1].channel += [right] if right else []
+    if not found or in_section:
+        raise StatementError(f"No se encontró la tabla «{AZTECA_SECTION}» con su total")
+    return rows
+
+
+def parse_azteca(pages: list[str]) -> ParsedStatement:
+    summary = _parse_azteca_summary(pages)
+    statement = ParsedStatement(
+        period_start=summary.period_start,
+        period_end=summary.period_end,
+        card_ending=summary.card_ending,
+    )
+    for row in _read_azteca_withdrawals(pages):
+        description = " ".join(row.concept)
+        channel = " ".join(row.channel)
+        payment = AZTECA_CARD_PAYMENT.match(description) is not None
+        statement.rows.append(
+            ParsedRow(
+                date=row.date,
+                description=description[:255],
+                amount=row.amount,
+                kind=RowKind.TRANSFER_OUT if payment else RowKind.EXPENSE,
+                card_ending=None,
+                notes=f"Canal: {channel}" if channel else None,
+            )
+        )
+    _check_total(statement, "Retiros del resumen mensual", summary.withdrawals, statement.rows)
+    return statement
+
+
 PARSERS: dict[StatementFormat, Callable[[list[str]], ParsedStatement]] = {
     StatementFormat.BBVA_ORO: parse_bbva_oro,
     StatementFormat.BBVA_AZUL: parse_bbva_azul,
+    StatementFormat.AZTECA: parse_azteca,
 }
 # Formats whose pages are extracted with `extract_pages(..., columns=True)`.
 COLUMN_FORMATS = {StatementFormat.BBVA_AZUL}
+# Formats whose pages are extracted with `extract_pages(..., channel=True)`.
+CHANNEL_FORMATS = {StatementFormat.AZTECA}

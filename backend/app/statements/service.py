@@ -7,10 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.accounts.models import Account, StatementFormat
 from app.common.crud import get_owned
+from app.config import get_settings
 from app.errors import AppError
 from app.statements import parsers
 from app.statements.models import StatementImport
-from app.statements.parsers import RowKind, StatementError
+from app.statements.parsers import PasswordError, RowKind, StatementError
 from app.statements.schemas import (
     StatementImportCreate,
     StatementImportOut,
@@ -23,6 +24,19 @@ from app.transactions.schemas import TransferCreate
 from app.transactions.service import _check_category, add_transfer
 
 MAX_PDF_BYTES = 10 * 1024 * 1024
+# Setting with the password of each format's PDFs. The bank sets it and it's the same every
+# month, so it lives in .env (passed to the api container by compose.yaml), never in the DB.
+PDF_PASSWORD_SETTINGS = {StatementFormat.AZTECA: "azteca_pdf_password"}
+
+
+def _pdf_password(fmt: StatementFormat) -> str | None:
+    setting = PDF_PASSWORD_SETTINGS.get(fmt)
+    secret = getattr(get_settings(), setting) if setting else None
+    if secret is None:
+        return None
+    return secret.get_secret_value() or None  # compose passes "" when it isn't set
+
+
 # Rows imported as two linked transactions instead of an expense or income.
 TRANSFER_ROW_KINDS = {RowKind.PAYMENT, RowKind.TRANSFER_OUT, RowKind.TRANSFER_IN}
 
@@ -65,10 +79,19 @@ async def preview_statement(
     if len(pdf) > MAX_PDF_BYTES:
         raise AppError.bad_request("El PDF no puede pesar más de 10 MB")
     assert account.statement_format is not None  # checked by _import_account
+    fmt = StatementFormat(account.statement_format)
     try:
-        fmt = StatementFormat(account.statement_format)
-        pages = parsers.extract_pages(pdf, columns=fmt in parsers.COLUMN_FORMATS)
+        pages = parsers.extract_pages(
+            pdf,
+            columns=fmt in parsers.COLUMN_FORMATS,
+            channel=fmt in parsers.CHANNEL_FORMATS,
+            password=_pdf_password(fmt),
+        )
         statement = parsers.PARSERS[fmt](pages)
+    except PasswordError as exc:
+        setting = PDF_PASSWORD_SETTINGS.get(fmt)
+        hint = f"; revisa {setting.upper()} en .env" if setting else ""
+        raise AppError.bad_request(f"{exc}{hint}") from exc
     except StatementError as exc:
         raise AppError.bad_request(str(exc)) from exc
     if statement.card_ending not in (account.card_endings or []):
@@ -170,7 +193,8 @@ async def list_imports(
     query = select(StatementImport).where(StatementImport.user_id == user_id)
     if account_id is not None:
         query = query.where(StatementImport.account_id == account_id)
-    records = await db.scalars(query.order_by(StatementImport.period_end.desc()))
+    # Oldest period first, the way the user reads the account's history.
+    records = await db.scalars(query.order_by(StatementImport.period_start, StatementImport.id))
     return [StatementImportOut.model_validate(r) for r in records]
 
 

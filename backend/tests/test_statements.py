@@ -5,8 +5,15 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 
-from app.statements import parsers
-from app.statements.parsers import RowKind, StatementError, parse_bbva_azul, parse_bbva_oro
+from app.config import Settings
+from app.statements import parsers, service
+from app.statements.parsers import (
+    PasswordError,
+    RowKind,
+    StatementError,
+    parse_bbva_azul,
+    parse_bbva_oro,
+)
 
 # Anonymized text of a BBVA Oro statement, one string per PDF page, as pdfplumber reads it.
 PROMO = "Descubre todo lo que tu TDC puede hacer por ti\n"
@@ -385,7 +392,7 @@ async def test_import_azul_with_transfers(
 ) -> None:
     calls: list[bool] = []
 
-    def fake_extract(pdf: bytes, *, columns: bool = False) -> list[str]:
+    def fake_extract(pdf: bytes, *, columns: bool = False, **_: Any) -> list[str]:
         calls.append(columns)
         return AZUL_PAGES
 
@@ -531,3 +538,272 @@ def test_parse_bbva_oro_lowercase_totals() -> None:
     statement = parse_bbva_oro([HEADER, MOVEMENTS_1, totals])
     assert len(statement.rows) == 5
     assert statement.warnings == []
+
+
+# Anonymized Banco Azteca (Guardadito) pages, as `extract_pages(..., channel=True)` tags them.
+AZTECA_PAGE_1 = """CLIENTE DE PRUEBA
+No. Cliente: 300000000 * CP Domicilio Fiscal: 01000
+No. Cuenta: 01040000004321 Régimen Fiscal: 616 - Sin obligaciones fiscales
+Tipo de Cuenta: GUARDADITO Domicilio: CALLE 1 CENTRO
+Periodo: del 01 de enero 2026 al 31 de enero 2026
+Fecha de corte: 31 de enero 2026
+Banco Azteca S. A. Institución de Banca Múltiple
+Estado de Cuenta
+Resumen Mensual de Movimientos de la Cuenta en Moneda Nacional [CANAL] Hoja 1 de 3
+Saldo Inicial al 01 de enero 2026 = $0.00
+( + ) Depósitos del Periodo + $10,000.04 [CANAL] Ver Detalle Pag. 1
+Depósitos ( + ) $10,000.00 [CANAL] Ver Detalle Pag. 1
+( - ) Retiros del Periodo - $3,150.00 [CANAL] Ver Detalle Pag. 2
+Retiros* ( - ) $3,150.00 [CANAL] Ver Detalle Pag. 2
+Comisiones ( - ) $0.00 [CANAL] Ver Detalle Pag. 2
+Saldo Final al 31 de enero 2026 = $6,850.04
+Total Depósitos del mes
+[CANAL] Lugar o Canal de
+Fecha Concepto Monto de la Operación
+[CANAL] Operación
+30/01/2026 TRANSFERENCIA SPEI A SU FAVOR (+) $10,000.00 [CANAL] SPEI
+31/01/2026 ABONO POR LIQUIDACION DE (+) $0.04 [CANAL] BANCO AZTECA
+INTERESES
+Total $10,000.04
+Cuánto recibí de interés en el mes en mi cuenta a la vista
+Interés Recibido $0.04
+Total de Retiros del mes
+[CANAL] Lugar o Canal de
+Fecha Concepto Monto de la Operación
+[CANAL] Operación
+30/01/2026 COMPRA EN TELCEL RECARGAS(-) $25.00 [CANAL] COMPRA CON
+CIUDAD DE MEX RFC:XXX 000000XX0 [CANAL] TARJETA
+Continúa en la siguiente hoja . . .
+* En caso de no contar con RFC, se señalará la clave genérica [CANAL] fiscal del emisor de
+tales efectos.
+Este documento es una representación impresa de un CFDI
+"""
+AZTECA_PAGE_2 = """[CANAL] Hoja 2 de 3
+[CANAL] Lugar o Canal de
+Fecha Concepto Monto de la Operación
+[CANAL] Operación
+30/01/2026 COMPRA EN TELCEL RECARGAS(-) $25.00 [CANAL] COMPRA CON
+CIUDAD DE MEX RFC:XXX 000000XX0 [CANAL] TARJETA
+31/01/2026 ENVIO TRANSFERENCIA SPEI (-) $3,000.00 [CANAL] APP BANCO AZTECA
+HORARIO EXTENDIDO
+31/01/2026 TRASPASO ENTRE CUENTAS (-) $100.00 [CANAL] APP BANCO AZTECA
+Total $3,150.00
+Comisiones que aplicaron en el mes en mi cuenta a la vista
+Total Comisiones Cobradas = $0.00
+"""
+AZTECA_PAGES = [AZTECA_PAGE_1, AZTECA_PAGE_2]
+
+
+def test_parse_azteca() -> None:
+    statement = parsers.parse_azteca(AZTECA_PAGES)
+
+    # The period comes from the summary's opening and closing balance dates.
+    assert (statement.period_start, statement.period_end) == (date(2026, 1, 1), date(2026, 1, 31))
+    assert statement.card_ending == "4321"
+    rows = [(r.date, r.description, r.amount, r.kind, r.notes) for r in statement.rows]
+    telcel = "COMPRA EN TELCEL RECARGAS CIUDAD DE MEX RFC:XXX 000000XX0"
+    # Only the withdrawals; deposits are skipped. Wrapped concepts and channels are joined,
+    # the page footer and the repeated header are skipped, and the two equal purchases (one
+    # per page) are both kept.
+    assert rows == [
+        (date(2026, 1, 30), telcel, Decimal("25.00"), RowKind.EXPENSE, "Canal: COMPRA CON TARJETA"),
+        (date(2026, 1, 30), telcel, Decimal("25.00"), RowKind.EXPENSE, "Canal: COMPRA CON TARJETA"),
+        (
+            date(2026, 1, 31),
+            "ENVIO TRANSFERENCIA SPEI HORARIO EXTENDIDO",
+            Decimal("3000.00"),
+            RowKind.EXPENSE,
+            "Canal: APP BANCO AZTECA",
+        ),
+        (
+            date(2026, 1, 31),
+            "TRASPASO ENTRE CUENTAS",  # pays another Azteca client: an expense
+            Decimal("100.00"),
+            RowKind.EXPENSE,
+            "Canal: APP BANCO AZTECA",
+        ),
+    ]
+    assert statement.warnings == []
+
+
+# A Liverpool card payment made from the account (a "COMPRA" by the bank's wording).
+AZTECA_LIVERPOOL = """02/10/2026 COMPRA EN LIVERPOOL POR (-) $911.00 [CANAL] COMPRA CON
+INTERNET CIUDAD DE MEX [CANAL] TARJETA
+RFC:DLI 931201MI9
+"""
+
+
+def _azteca_with_liverpool() -> list[str]:
+    page_1 = AZTECA_PAGE_1.replace("Retiros* ( - ) $3,150.00", "Retiros* ( - ) $4,061.00")
+    page_2 = AZTECA_PAGE_2.replace("Total $3,150.00", AZTECA_LIVERPOOL + "Total $4,061.00")
+    return [page_1, page_2]
+
+
+def test_parse_azteca_liverpool_is_a_card_payment() -> None:
+    statement = parsers.parse_azteca(_azteca_with_liverpool())
+    payment = statement.rows[-1]
+    assert payment.description == "COMPRA EN LIVERPOOL POR INTERNET CIUDAD DE MEX RFC:DLI 931201MI9"
+    assert payment.amount == Decimal("911.00")
+    # A transfer to the Liverpool card the user picks; selected, since there is no Liverpool
+    # statement to load it from.
+    assert payment.kind == RowKind.TRANSFER_OUT and payment.skip_reason is None
+    assert payment.notes == "Canal: COMPRA CON TARJETA"
+    assert statement.warnings == []
+
+
+async def test_import_azteca_liverpool_payment(
+    auth_client: AsyncClient, azteca: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(parsers, "extract_pages", lambda pdf, **_: _azteca_with_liverpool())
+    liverpool = await _post(
+        auth_client, "/api/accounts", {"name": "Liverpool Morada", "type": "credit_card"}
+    )
+    preview = (await _preview(auth_client, azteca["id"])).json()
+    rows = preview["rows"]
+    rows[-1]["counterpart_account_id"] = liverpool["id"]
+    res = await auth_client.post(
+        "/api/statements/import",
+        json={**_period(preview), "account_id": azteca["id"], "rows": rows},
+    )
+    assert res.status_code == 201, res.text
+
+    balances = {a["id"]: a["balance"] for a in (await auth_client.get("/api/accounts")).json()}
+    assert balances[azteca["id"]] == "-4061.00"
+    assert balances[liverpool["id"]] == "911.00"  # the payment lowers the card's debt
+    spending = await auth_client.get(
+        "/api/transactions", params={"account_id": azteca["id"], "kind": "expense"}
+    )
+    assert spending.json()["total"] == 4  # the 5th row, the payment, is not spending
+
+
+def test_parse_azteca_ignores_page_numbers_and_cut_date() -> None:
+    # Only the summary and the withdrawals table matter.
+    page = AZTECA_PAGE_1.replace("Hoja 1 de 3", "").replace("Fecha de corte: 31", "Fecha: 30")
+    statement = parsers.parse_azteca([page, AZTECA_PAGE_2])
+    assert len(statement.rows) == 4 and statement.warnings == []
+
+
+def test_parse_azteca_warns_when_withdrawals_differ_from_summary() -> None:
+    page = AZTECA_PAGE_1.replace("Retiros* ( - ) $3,150.00", "Retiros* ( - ) $3,175.00")
+    statement = parsers.parse_azteca([page, AZTECA_PAGE_2])
+    assert statement.warnings == [
+        "No cuadra: Retiros del resumen mensual dice 3,175.00, los movimientos suman 3,150.00 "
+        "(diferencia -25.00)"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("pages", "message"),
+    [
+        # A statement of another bank, e.g. a BBVA Libretón picked by mistake.
+        (PAGES, "no es un estado de cuenta de Banco Azteca"),
+        (
+            [AZTECA_PAGE_1.replace("Resumen Mensual", "Resumen"), AZTECA_PAGE_2],
+            "No se encontró el «Resumen Mensual",
+        ),
+        (
+            [AZTECA_PAGE_1.replace("Saldo Final al", "Saldo Final"), AZTECA_PAGE_2],
+            "periodo",
+        ),
+        (
+            [AZTECA_PAGE_1.replace("Retiros* ( - )", "Retiros"), AZTECA_PAGE_2],
+            "total de retiros",
+        ),
+        (
+            [AZTECA_PAGE_1.replace("No. Cuenta:", "Cuenta"), AZTECA_PAGE_2],
+            "número de cuenta",
+        ),
+        ([AZTECA_PAGE_1], "Total de Retiros del mes"),
+        (
+            [AZTECA_PAGE_1, AZTECA_PAGE_2.replace("SPEI (-)", "SPEI (+)")],
+            "signo inesperado",
+        ),
+    ],
+)
+def test_parse_azteca_rejects(pages: list[str], message: str) -> None:
+    with pytest.raises(StatementError, match=message):
+        parsers.parse_azteca(pages)
+
+
+@pytest.fixture
+async def azteca(auth_client: AsyncClient) -> dict[str, Any]:
+    return await _post(
+        auth_client,
+        "/api/accounts",
+        {
+            "name": "Azteca Guardadito",
+            "type": "debit",
+            "statement_format": "azteca",
+            "card_endings": ["4321"],
+        },
+    )
+
+
+def _with_password(monkeypatch: pytest.MonkeyPatch, password: str | None) -> None:
+    settings = Settings(azteca_pdf_password=password)
+    monkeypatch.setattr(service, "get_settings", lambda: settings)
+
+
+async def test_preview_azteca_uses_configured_password(
+    auth_client: AsyncClient, azteca: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def fake_extract(pdf: bytes, **kwargs: Any) -> list[str]:
+        calls.append(kwargs)
+        return AZTECA_PAGES
+
+    monkeypatch.setattr(parsers, "extract_pages", fake_extract)
+    _with_password(monkeypatch, "clave-de-prueba")
+    res = await _preview(auth_client, azteca["id"])
+    assert res.status_code == 200, res.text
+    assert calls == [{"columns": False, "channel": True, "password": "clave-de-prueba"}]
+    assert len(res.json()["rows"]) == 4
+
+
+@pytest.mark.parametrize(
+    ("password", "message"),
+    [
+        (None, "El PDF está protegido con contraseña; revisa AZTECA_PDF_PASSWORD en .env"),
+        ("mala", "La contraseña del PDF no es correcta; revisa AZTECA_PDF_PASSWORD en .env"),
+    ],
+)
+async def test_preview_azteca_password_errors(
+    auth_client: AsyncClient,
+    azteca: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    password: str | None,
+    message: str,
+) -> None:
+    def fake_extract(pdf: bytes, *, password: str | None = None, **_: Any) -> list[str]:
+        if password:
+            raise PasswordError("La contraseña del PDF no es correcta")
+        raise PasswordError("El PDF está protegido con contraseña")
+
+    monkeypatch.setattr(parsers, "extract_pages", fake_extract)
+    _with_password(monkeypatch, password)
+    res = await _preview(auth_client, azteca["id"])
+    assert res.status_code == 400
+    assert res.json()["error"]["message"] == message
+
+
+async def test_list_imports_oldest_first(auth_client: AsyncClient, azteca: dict[str, Any]) -> None:
+    row = {
+        "description": "ENVIO SPEI",
+        "amount": "10.00",
+        "kind": "expense",
+        "card_ending": None,
+        "notes": None,
+    }
+    for month, sha in (("03", "c"), ("01", "a"), ("02", "b")):
+        body = {
+            "account_id": azteca["id"],
+            "period_start": f"2026-{month}-01",
+            "period_end": f"2026-{month}-28",
+            "file_sha256": sha * 64,
+            "rows": [{**row, "date": f"2026-{month}-15"}],
+        }
+        await _post(auth_client, "/api/statements/import", body)
+
+    res = await auth_client.get("/api/statements/imports", params={"account_id": azteca["id"]})
+    assert [x["period_start"] for x in res.json()] == ["2026-01-01", "2026-02-01", "2026-03-01"]
